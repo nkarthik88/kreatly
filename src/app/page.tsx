@@ -139,8 +139,8 @@ function Nav() {
           Sign in
         </a>
         <a
-          href="#pricing"
-          className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+          href="/signup"
+          className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 hover:shadow-[0_0_22px_rgba(139,92,246,0.45)] transition-all"
         >
           Get started <ArrowRight className="h-3.5 w-3.5" />
         </a>
@@ -197,8 +197,8 @@ function Hero() {
         className="mt-10 flex flex-col sm:flex-row items-center gap-3"
       >
         <a
-          href="#pricing"
-          className="flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+          href="/signup"
+          className="flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700 hover:shadow-[0_0_24px_rgba(139,92,246,0.45)] transition-all"
         >
           Start free trial <ArrowRight className="h-4 w-4" />
         </a>
@@ -228,61 +228,11 @@ function Hero() {
         animate="show"
         className="mt-14 w-full max-w-2xl rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-xl shadow-gray-200/70"
       >
-        {/* Browser chrome */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-          <div className="flex gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full bg-gray-200" />
-            <div className="h-2.5 w-2.5 rounded-full bg-gray-200" />
-            <div className="h-2.5 w-2.5 rounded-full bg-gray-200" />
-          </div>
-          <div className="flex-1 mx-6">
-            <div className="h-5 rounded-full bg-gray-100 w-40 mx-auto" />
-          </div>
-          <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[10px] text-emerald-600 font-medium">Live sync</span>
-          </div>
-        </div>
-
-        {/* App layout */}
-        <div className="flex min-h-[180px]">
-          {/* Sidebar */}
-          <div className="w-40 border-r border-gray-100 p-3 space-y-0.5 flex-shrink-0">
-            <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-violet-50">
-              <div className="h-3 w-3 rounded bg-violet-200 flex-shrink-0" />
-              <div className="h-2 w-14 rounded-full bg-violet-200" />
-            </div>
-            {sidebarWidths.map((w, i) => (
-              <div key={i} className="flex items-center gap-2 px-2.5 py-2">
-                <div className="h-3 w-3 rounded bg-gray-100 flex-shrink-0" />
-                <div className="h-2 rounded-full bg-gray-100" style={{ width: w }} />
-              </div>
-            ))}
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-2.5 w-24 rounded-full bg-gray-200" />
-              <div className="flex items-center gap-1.5 rounded-full border border-gray-100 px-2.5 py-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <div className="h-1.5 w-12 rounded-full bg-gray-100" />
-              </div>
-            </div>
-            <div className="space-y-0.5">
-              {previewRows.map((row, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                  <div className="h-3 w-3 rounded flex-shrink-0 bg-gray-100" />
-                  <div className="h-2 rounded-full bg-gray-100" style={{ width: rowWidths[i] }} />
-                  <div className="flex-1" />
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${row.badgeClass}`}>
-                    {row.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <img
+          src="/hero-illustration.svg"
+          alt="3D illustration of a Notion workspace transforming into a beautiful blog"
+          className="h-auto w-full"
+        />
       </motion.div>
     </section>
   );
@@ -490,14 +440,14 @@ function Pricing() {
           >
             {[
               {
-                quote: "KREATLY turned my Notion chaos into a system that actually works. Worth every cent.",
-                name: "Sarah K.",
-                role: "Product designer",
+                quote: "KREATLY's AI Twitter auto-posting saves us at least 10 hours every week. We ship more content with way less effort.",
+                name: "Alex Rivera, Founder of TechPulse",
+                role: "Founder",
               },
               {
-                quote: "The Notion sync is genuinely magic. Everything stays in sync without me touching anything.",
-                name: "Marcus T.",
-                role: "Indie hacker",
+                quote: "The Notion sync is ridiculously simple. I connected once and everything just stays updated in the background.",
+                name: "Jordan Chen, Indie Maker",
+                role: "Indie maker",
               },
               {
                 quote: "Switched from a $30/month competitor. KREATLY does more for a third of the price.",
