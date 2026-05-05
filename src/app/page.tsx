@@ -84,9 +84,9 @@ const features = [
 ];
 
 const included = [
-  "Unlimited Notion sync",
+  "Unlimited Notion-to-Blog Sync",
   "Real-time collaboration",
-  "AI writing assistant",
+  "AI Reddit & Twitter Auto-posting",
   "Smart reminders & nudges",
   "Daily encrypted backups",
   "Priority support",
@@ -125,7 +125,7 @@ function Nav() {
         <div className="h-7 w-7 rounded-lg bg-slate-900 flex items-center justify-center">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
-        <span className="text-sm font-semibold tracking-tight text-slate-900">Kreatly</span>
+        <span className="text-sm font-semibold tracking-tight text-slate-900">KREATLY</span>
       </div>
 
       <div className="hidden md:flex items-center gap-8 text-sm text-gray-500">
@@ -174,9 +174,7 @@ function Hero() {
         className="max-w-3xl font-bold tracking-[-0.03em] leading-[1.06] text-slate-900"
         style={{ fontSize: "clamp(2.6rem, 7vw, 5rem)" }}
       >
-        Your Notion workspace,{" "}
-        <br className="hidden sm:block" />
-        <span className="text-violet-600">supercharged</span>.
+        KREATLY — Best in Feather.io
       </motion.h1>
 
       {/* Sub */}
@@ -187,7 +185,7 @@ function Hero() {
         animate="show"
         className="mt-6 max-w-md text-lg text-gray-500 leading-relaxed"
       >
-        Real-time sync, AI-assisted writing, and smart reminders — all inside Notion.
+        Turn your Notion workspace into a beautiful blog in seconds. Plus, use AI to automatically generate and publish Twitter threads and Reddit posts from your content.
       </motion.p>
 
       {/* CTAs */}
@@ -333,7 +331,7 @@ function Features() {
             Built for how you actually work
           </motion.h2>
           <motion.p variants={fadeUp} className="mt-4 text-gray-500 max-w-lg mx-auto">
-            Kreatly layers powerful automation on top of Notion without changing how you use it.
+            KREATLY layers powerful automation on top of Notion without changing how you use it.
           </motion.p>
         </motion.div>
 
@@ -382,7 +380,7 @@ function NotionSync() {
               Two-way sync that actually works
             </h2>
             <p className="text-gray-500 leading-relaxed max-w-lg">
-              Connect Kreatly to your Notion workspace in 60 seconds. Every page, database, and task stays in perfect harmony — edits flow both ways, instantly.
+              Connect KREATLY to your Notion workspace in 60 seconds. Every page, database, and task stays in perfect harmony — edits flow both ways, instantly.
             </p>
             <ul className="mt-7 space-y-3">
               {["Works with all Notion database types", "Granular permission control", "Conflict-free merging"].map((item) => (
@@ -492,7 +490,7 @@ function Pricing() {
           >
             {[
               {
-                quote: "Kreatly turned my Notion chaos into a system that actually works. Worth every cent.",
+                quote: "KREATLY turned my Notion chaos into a system that actually works. Worth every cent.",
                 name: "Sarah K.",
                 role: "Product designer",
               },
@@ -502,7 +500,7 @@ function Pricing() {
                 role: "Indie hacker",
               },
               {
-                quote: "Switched from a $30/month competitor. Kreatly does more for a third of the price.",
+                quote: "Switched from a $30/month competitor. KREATLY does more for a third of the price.",
                 name: "Priya M.",
                 role: "Startup founder",
               },
@@ -541,7 +539,7 @@ function CtaBanner() {
           Ready to supercharge Notion?
         </h2>
         <p className="text-gray-500 mb-8 max-w-sm mx-auto">
-          Join thousands of makers, founders, and teams who run their work through Kreatly.
+          Join thousands of makers, founders, and teams who run their work through KREATLY.
         </p>
         <a
           href="#pricing"
@@ -565,9 +563,9 @@ function Footer() {
           <div className="h-6 w-6 rounded-md bg-slate-900 flex items-center justify-center">
             <Sparkles className="h-3 w-3 text-white" />
           </div>
-          <span className="text-sm font-semibold text-slate-900">Kreatly</span>
+          <span className="text-sm font-semibold text-slate-900">KREATLY</span>
         </div>
-        <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} Kreatly. All rights reserved.</p>
+        <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} KREATLY. All rights reserved.</p>
         <div className="flex items-center gap-6 text-xs text-gray-400">
           <a href="#" className="hover:text-gray-600 transition-colors">Privacy</a>
           <a href="#" className="hover:text-gray-600 transition-colors">Terms</a>
