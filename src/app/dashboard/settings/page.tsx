@@ -3,7 +3,14 @@
 import type React from "react";
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { doc, enableNetwork, getDocFromServer, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  doc,
+  enableNetwork,
+  getDoc,
+  getDocFromCache,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
 
@@ -25,15 +32,41 @@ export default function SettingsPage() {
       if (!user?.uid) return;
       try {
         await enableNetwork(db);
-        const snap = await getDocFromServer(doc(db, "users", user.uid));
-        const data = snap.data() || {};
+        const ref = doc(db, "users", user.uid);
+        let data: Record<string, unknown> | null = null;
 
-        const voice = typeof data.voiceBio === "string" ? data.voiceBio : "";
+        try {
+          const snap = await getDoc(ref);
+          data = snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+        } catch {
+          // Fallback to cache if server fetch fails
+          try {
+            const cacheSnap = await getDocFromCache(ref);
+            data = cacheSnap.exists()
+              ? (cacheSnap.data() as Record<string, unknown>)
+              : null;
+          } catch {
+            data = null;
+          }
+        }
+
+        if (!data) {
+          // Fallback to local base only; do not show error if we still have config
+          const localBase = localStorage.getItem("kreatly_public_base_url") || "";
+          if (localBase) {
+            const finalBase = normalizeBaseUrl(localBase);
+            setPublicBaseUrl(finalBase);
+          }
+          return;
+        }
+
+        const voice = typeof data.voiceBio === "string" ? String(data.voiceBio) : "";
         if (textRef.current && voice) {
           textRef.current.value = voice;
         }
 
-        const storedBase = typeof data.publicBaseUrl === "string" ? data.publicBaseUrl : "";
+        const storedBase =
+          typeof data.publicBaseUrl === "string" ? String(data.publicBaseUrl) : "";
         const localBase = localStorage.getItem("kreatly_public_base_url") || "";
         const finalBase = normalizeBaseUrl(storedBase || localBase || publicBaseUrl);
         setPublicBaseUrl(finalBase);
@@ -74,7 +107,8 @@ export default function SettingsPage() {
       const normalizedBase = normalizeBaseUrl(publicBaseUrl);
       const userRef = doc(db, "users", user.uid);
 
-      const savePromise = setDoc(
+      // Fire-and-forget: let Firestore sync in background
+      setDoc(
         userRef,
         {
           voiceBio,
@@ -82,17 +116,14 @@ export default function SettingsPage() {
           updatedAt: serverTimestamp(),
         },
         { merge: true },
-      );
-
-      const timeoutId = window.setTimeout(() => {
-        throw new Error("Database timeout");
-      }, 4000);
-
-      try {
-        await savePromise;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
+      ).catch((err: unknown) => {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to save Voice DNA settings in background.";
+        setError(message);
+        alert(message);
+      });
 
       localStorage.setItem("kreatly_public_base_url", normalizedBase);
       setPublicBaseUrl(normalizedBase);
