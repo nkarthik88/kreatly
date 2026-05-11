@@ -4,15 +4,24 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { signOut } from "firebase/auth";
+import {
+  FileText,
+  MessageSquare,
+  Mic,
+  PenSquare,
+  Settings as SettingsIcon,
+  Sparkles,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { auth } from "@/lib/firebase";
 
 const navItems = [
-  { label: "Blogs", href: "/dashboard/blogs" },
-  { label: "Writer", href: "/dashboard/studio" },
-  { label: "Interviews", href: "/dashboard/interviews" },
-  { label: "Meadow", href: "/dashboard/meadow" },
-  { label: "Replier", href: "/dashboard/replier" },
+  { label: "Blogs", href: "/dashboard/blogs", icon: FileText },
+  { label: "Writer", href: "/dashboard/studio", icon: PenSquare },
+  { label: "Interviews", href: "/dashboard/interviews", icon: Mic },
+  { label: "Meadow", href: "/dashboard/meadow", icon: Sparkles },
+  { label: "Replier", href: "/dashboard/replier", icon: MessageSquare },
+  { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
 ];
 
 export default function DashboardLayout({
@@ -53,6 +62,7 @@ export default function DashboardLayout({
         <div className="mb-8 text-base font-semibold tracking-tight">Kreatly</div>
         <nav className="flex-1 space-y-1">
           {navItems.map((item) => {
+            const Icon = item.icon;
             const isActive =
               pathname === item.href ||
               (item.href === "/dashboard/interviews" &&
@@ -65,12 +75,13 @@ export default function DashboardLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
                     ? "text-black"
                     : "text-zinc-500 hover:text-black"
                 }`}
               >
+                <Icon className="h-4 w-4" />
                 {item.label}
               </Link>
             );

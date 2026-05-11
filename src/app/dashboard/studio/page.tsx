@@ -2,6 +2,7 @@
 
 import { Check, Copy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 type Story = {
   id: string;
@@ -13,6 +14,7 @@ type Story = {
 type Channel = "linkedin" | "x" | "reddit" | "seo-geo";
 
 export default function StudioPage() {
+  const { user } = useAuth();
   const [stories, setStories] = useState<Story[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [storyContent, setStoryContent] = useState("");
@@ -22,6 +24,7 @@ export default function StudioPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channel, setChannel] = useState<Channel>("linkedin");
+  const [usedVoiceProfile, setUsedVoiceProfile] = useState(false);
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [didCopyDraft, setDidCopyDraft] = useState(false);
   const [showSuccessPulse, setShowSuccessPulse] = useState(false);
@@ -180,17 +183,18 @@ export default function StudioPage() {
 
     setIsGenerating(true);
     setGeneratedContent("");
+    setUsedVoiceProfile(false);
     setError(null);
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/refine", {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          uid: user?.uid,
           pageId: selectedId,
           content: storyContent,
           channel,
-          mode: "draft",
         }),
       });
       const data = await response.json();
@@ -204,6 +208,7 @@ export default function StudioPage() {
           ? data.generatedContent
           : "No generation output returned.",
       );
+      setUsedVoiceProfile(Boolean(data?.usedVoiceProfile));
       if (successPulseTimeoutRef.current) {
         window.clearTimeout(successPulseTimeoutRef.current);
       }
@@ -335,9 +340,14 @@ export default function StudioPage() {
 
             <div className="p-6">
               <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.15em] text-zinc-500">
-                Claude Draft
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs uppercase tracking-[0.15em] text-zinc-500">Claude Draft</p>
+                  {usedVoiceProfile ? (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                      Voice DNA Active
+                    </span>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={() => void handleCopyDraft()}
