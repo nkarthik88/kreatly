@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
+  const hasEditedRef = useRef(false);
 
   useEffect(() => {
     async function loadVoiceBio() {
@@ -26,17 +27,25 @@ export default function SettingsPage() {
       setError(null);
       try {
         const userRef = doc(db, "users", user.uid);
-        const snapshot = await getDoc(userRef);
+        const snapshot = await withTimeout(
+          getDoc(userRef),
+          5000,
+          "Loading settings timed out. You can still edit and save.",
+        );
         const value = snapshot.data()?.voiceBio;
         const storedBaseUrl = snapshot.data()?.publicBaseUrl;
-        setVoiceBio(typeof value === "string" ? value : "");
-        if (typeof storedBaseUrl === "string" && storedBaseUrl.trim()) {
-          setPublicBaseUrl(storedBaseUrl.trim());
-          localStorage.setItem("kreatly_public_base_url", storedBaseUrl.trim());
-        } else {
-          const localBaseUrl = localStorage.getItem("kreatly_public_base_url");
-          if (localBaseUrl?.trim()) {
-            setPublicBaseUrl(localBaseUrl.trim());
+        if (!hasEditedRef.current) {
+          setVoiceBio(typeof value === "string" ? value : "");
+        }
+        if (!hasEditedRef.current) {
+          if (typeof storedBaseUrl === "string" && storedBaseUrl.trim()) {
+            setPublicBaseUrl(storedBaseUrl.trim());
+            localStorage.setItem("kreatly_public_base_url", storedBaseUrl.trim());
+          } else {
+            const localBaseUrl = localStorage.getItem("kreatly_public_base_url");
+            if (localBaseUrl?.trim()) {
+              setPublicBaseUrl(localBaseUrl.trim());
+            }
           }
         }
       } catch (loadError) {
@@ -68,14 +77,18 @@ export default function SettingsPage() {
     try {
       const normalizedBaseUrl = normalizeBaseUrl(publicBaseUrl);
       const userRef = doc(db, "users", user.uid);
-      await setDoc(
-        userRef,
-        {
-          voiceBio: voiceBio.trim(),
-          publicBaseUrl: normalizedBaseUrl,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
+      await withTimeout(
+        setDoc(
+          userRef,
+          {
+            voiceBio: voiceBio.trim(),
+            publicBaseUrl: normalizedBaseUrl,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        ),
+        6000,
+        "Saving took too long. Please try again.",
       );
       localStorage.setItem("kreatly_public_base_url", normalizedBaseUrl);
       setPublicBaseUrl(normalizedBaseUrl);
@@ -111,10 +124,13 @@ export default function SettingsPage() {
             id="voice-bio"
             rows={10}
             value={voiceBio}
-            onChange={(event) => setVoiceBio(event.target.value)}
+            onChange={(event) => {
+              hasEditedRef.current = true;
+              setVoiceBio(event.target.value);
+            }}
             placeholder="Paste your best writing samples here..."
             disabled={isLoading}
-            className="mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500"
+            className="mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="mt-6">
@@ -125,10 +141,13 @@ export default function SettingsPage() {
             id="public-base-url"
             type="url"
             value={publicBaseUrl}
-            onChange={(event) => setPublicBaseUrl(event.target.value)}
+            onChange={(event) => {
+              hasEditedRef.current = true;
+              setPublicBaseUrl(event.target.value);
+            }}
             placeholder="https://yourdomain.com"
             disabled={isLoading}
-            className="mt-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500"
+            className="mt-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
           />
           <p className="mt-2 text-xs text-zinc-500">
             Used for publish links and canonical metadata when posts are published.
@@ -164,5 +183,20 @@ function normalizeBaseUrl(value: string): string {
     return `${url.protocol}//${url.host}`;
   } catch {
     return "https://kreatly.vercel.app";
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) {
+      window.clearTimeout(timer);
+    }
   }
 }
