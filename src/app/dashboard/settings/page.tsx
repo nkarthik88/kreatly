@@ -24,6 +24,8 @@ export default function SettingsPage() {
   const hasEditedRef = useRef(false);
   const voiceBioRef = useRef<HTMLTextAreaElement | null>(null);
   const [showSuccessMark, setShowSuccessMark] = useState(false);
+  const loadTimeoutRef = useRef<number | null>(null);
+  const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     async function loadVoiceBio() {
@@ -34,6 +36,12 @@ export default function SettingsPage() {
 
       setIsLoading(true);
       setError(null);
+      if (loadTimeoutRef.current) {
+        window.clearTimeout(loadTimeoutRef.current);
+      }
+      loadTimeoutRef.current = window.setTimeout(() => {
+        setIsLoading(false);
+      }, 3000);
       try {
         await enableNetwork(db);
         const userRef = doc(db, "users", user.uid);
@@ -64,6 +72,9 @@ export default function SettingsPage() {
           setPublicBaseUrl(localBaseUrl.trim());
         }
       } finally {
+        if (loadTimeoutRef.current) {
+          window.clearTimeout(loadTimeoutRef.current);
+        }
         setIsLoading(false);
       }
     }
@@ -75,6 +86,12 @@ export default function SettingsPage() {
     return () => {
       if (toastTimeoutRef.current) {
         window.clearTimeout(toastTimeoutRef.current);
+      }
+      if (loadTimeoutRef.current) {
+        window.clearTimeout(loadTimeoutRef.current);
+      }
+      if (debounceRef.current) {
+        window.clearTimeout(debounceRef.current);
       }
     };
   }, []);
@@ -89,12 +106,13 @@ export default function SettingsPage() {
     setError(null);
     setShowSuccessMark(true);
     try {
+      await enableNetwork(db);
       const normalizedBaseUrl = normalizeBaseUrl(publicBaseUrl);
       const voiceBioValue = sanitizeVoiceBio(
         voiceBioRef.current?.value ?? voiceBioSeed,
       );
       const userRef = doc(db, "users", user.uid);
-      await setDoc(
+      const savePromise = setDoc(
         userRef,
         {
           voiceBio: voiceBioValue,
@@ -103,6 +121,13 @@ export default function SettingsPage() {
         },
         { merge: true },
       );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        window.setTimeout(
+          () => reject(new Error("Connection slow, but trying in background.")),
+          5000,
+        );
+      });
+      await Promise.race([savePromise, timeoutPromise]);
       localStorage.setItem("kreatly_public_base_url", normalizedBaseUrl);
       setPublicBaseUrl(normalizedBaseUrl);
 
@@ -114,8 +139,11 @@ export default function SettingsPage() {
         setShowToast(false);
       }, 1500);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save Voice DNA.");
-      setShowSuccessMark(false);
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Connection slow, but trying in background.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -140,7 +168,7 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-black px-10 py-10 text-white">
-      <div className="mx-auto max-w-4xl rounded-xl border border-zinc-800 bg-zinc-950 p-8">
+      <div className="pointer-events-auto relative z-10 mx-auto max-w-4xl rounded-xl border border-zinc-800 bg-zinc-950 p-8">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Voice DNA Settings</h1>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-400">
           Paste 3-5 of your best past LinkedIn posts or Tweets here. Our AI will analyze your
@@ -158,11 +186,17 @@ export default function SettingsPage() {
             defaultValue={voiceBioSeed}
             onChange={() => {
               hasEditedRef.current = true;
+              if (debounceRef.current) {
+                window.clearTimeout(debounceRef.current);
+              }
+              debounceRef.current = window.setTimeout(() => {
+                setVoiceBioSeed(voiceBioRef.current?.value ?? "");
+              }, 400);
             }}
             onPaste={handleCleanPaste}
             placeholder="Paste your best writing samples here..."
             disabled={isLoading}
-            className="mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
+            className="pointer-events-auto mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="mt-6">
@@ -179,7 +213,7 @@ export default function SettingsPage() {
             }}
             placeholder="https://yourdomain.com"
             disabled={isLoading}
-            className="mt-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
+            className="pointer-events-auto mt-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
           />
           <p className="mt-2 text-xs text-zinc-500">
             Used for publish links and canonical metadata when posts are published.

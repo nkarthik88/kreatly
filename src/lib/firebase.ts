@@ -19,6 +19,8 @@ const auth = getAuth(app);
 const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
 });
+// eslint-disable-next-line no-console
+console.log("Firebase Initialized");
 
 // Google provider
 const googleProvider = new GoogleAuthProvider();
