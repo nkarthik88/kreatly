@@ -30,7 +30,7 @@ function getChannelInstruction(channel: RefineChannel): string {
   }
 
   if (channel === "seo-geo") {
-    return "Rewrite for SEO/GEO discovery so AI search engines (Perplexity, Gemini, SearchGPT) can extract and rank it. Use explicit entities, query-intent phrasing, and high-information structure. End with a section titled 'Semantic Citations' containing 4-6 concise bullet points.";
+    return "Restructure this post to be the top answer for AI Search Engines (Perplexity/SearchGPT). Add a TL;DR at the top and use clear, factual headings. Keep claims concrete and easy for retrieval systems to quote.";
   }
 
   return "Rewrite as a high-impact LinkedIn post for startup founders and builders. Start with a high-engagement hook in the first line (contrarian insight, bold data point, or sharp question), then deliver practical value and end with a clear CTA.";

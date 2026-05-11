@@ -53,6 +53,34 @@ function fallbackSlugFromPageId(pageId: string): string {
   return pageId.replace(/-/g, "").toLowerCase();
 }
 
+function extractRichTextString(property: any): string {
+  if (!property) return "";
+  if (property?.type === "rich_text" && Array.isArray(property.rich_text)) {
+    return property.rich_text.map((t: any) => t?.plain_text || "").join("").trim();
+  }
+  if (property?.type === "title" && Array.isArray(property.title)) {
+    return property.title.map((t: any) => t?.plain_text || "").join("").trim();
+  }
+  if (property?.type === "formula") {
+    return String(property?.formula?.string || "").trim();
+  }
+  if (property?.type === "url") {
+    return String(property?.url || "").trim();
+  }
+  return "";
+}
+
+function extractFirstByKeyMatch(
+  properties: Record<string, any>,
+  matchers: string[],
+): string {
+  const entry = Object.entries(properties).find(([key]) => {
+    const normalized = normalize(key);
+    return matchers.some((matcher) => normalized.includes(matcher));
+  });
+  return extractRichTextString(entry?.[1]);
+}
+
 function extractPlainTextFromBlocks(blocks: any[]): string {
   const lines: string[] = [];
 
@@ -319,24 +347,15 @@ export async function POST(request: Request) {
             extractTitleFromProperties(properties) ||
             "Untitled Post";
 
-          const slugEntry = Object.entries(properties).find(([key]) =>
-            normalize(key).includes("slug"),
-          );
-          const slugProp: any = slugEntry?.[1];
-          const slugFromProperty =
-            slugProp?.type === "rich_text"
-              ? (slugProp?.rich_text ?? [])
-                  .map((t: any) => t?.plain_text || "")
-                  .join("")
-                  .trim()
-              : slugProp?.type === "title"
-                ? (slugProp?.title ?? [])
-                    .map((t: any) => t?.plain_text || "")
-                    .join("")
-                    .trim()
-                : slugProp?.type === "formula"
-                  ? String(slugProp?.formula?.string || "").trim()
-                  : "";
+          const slugFromProperty = extractFirstByKeyMatch(properties, ["slug"]);
+          const seoTitle = extractFirstByKeyMatch(properties, ["seo_title", "metatitle", "meta_title"]);
+          const seoDescription = extractFirstByKeyMatch(properties, [
+            "meta_description",
+            "seodescription",
+            "seo_description",
+            "description",
+          ]);
+          const ogImage = extractFirstByKeyMatch(properties, ["og_image", "open_graph", "social_image"]);
 
           const statusProp = propEntries.find(
             (p) =>
@@ -396,6 +415,9 @@ export async function POST(request: Request) {
             last_edited_time: page?.last_edited_time || null,
             publish_status,
             is_published,
+            seo_title: seoTitle || title,
+            seo_description: seoDescription || content.slice(0, 180),
+            og_image: ogImage || null,
             content,
           };
         } catch {
@@ -407,6 +429,9 @@ export async function POST(request: Request) {
             last_edited_time: page?.last_edited_time || null,
             publish_status: "Draft",
             is_published: false,
+            seo_title: "Untitled Post",
+            seo_description: "Untitled Post",
+            og_image: null,
             content: "Untitled Post",
           };
         }
