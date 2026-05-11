@@ -19,7 +19,7 @@ type Story = {
   publishStatus: string;
 };
 
-const PUBLIC_APP_URL = "https://kreatly.vercel.app";
+const DEFAULT_PUBLIC_APP_URL = "https://kreatly.vercel.app";
 
 export default function BlogsPage() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -27,11 +27,19 @@ export default function BlogsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [showPublishedPanel, setShowPublishedPanel] = useState(false);
+  const [publicBaseUrl, setPublicBaseUrl] = useState(DEFAULT_PUBLIC_APP_URL);
   const toastTimeoutRef = useRef<number | null>(null);
   const publishedStories = stories.filter((story) => story.isPublished && story.slug);
 
   useEffect(() => {
     void handleSync();
+  }, []);
+
+  useEffect(() => {
+    const localBaseUrl = localStorage.getItem("kreatly_public_base_url");
+    if (localBaseUrl?.trim()) {
+      setPublicBaseUrl(normalizeBaseUrl(localBaseUrl));
+    }
   }, []);
 
   useEffect(() => {
@@ -51,7 +59,7 @@ export default function BlogsPage() {
   }
 
   function getPublicUrl(slug: string): string {
-    return `${PUBLIC_APP_URL}/b/${slug}`;
+    return `${publicBaseUrl}/b/${slug}`;
   }
 
   function clearCacheAndResync() {
@@ -183,6 +191,7 @@ export default function BlogsPage() {
           seoTitle: story.seoTitle || story.title || "Untitled Post",
           seoDescription: story.seoDescription || story.content.slice(0, 180),
           ogImage: story.ogImage || null,
+          publicBaseUrl,
           isPublished: checked,
           updatedAt: serverTimestamp(),
         },
@@ -398,6 +407,17 @@ export default function BlogsPage() {
       ) : null}
     </div>
   );
+}
+
+function normalizeBaseUrl(value: string): string {
+  const raw = value.trim() || DEFAULT_PUBLIC_APP_URL;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProtocol);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return DEFAULT_PUBLIC_APP_URL;
+  }
 }
 
 function formatLastEdited(value: string | null): string {

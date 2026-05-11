@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase";
 export default function SettingsPage() {
   const { user } = useAuth();
   const [voiceBio, setVoiceBio] = useState("");
+  const [publicBaseUrl, setPublicBaseUrl] = useState("https://kreatly.vercel.app");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +28,17 @@ export default function SettingsPage() {
         const userRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(userRef);
         const value = snapshot.data()?.voiceBio;
+        const storedBaseUrl = snapshot.data()?.publicBaseUrl;
         setVoiceBio(typeof value === "string" ? value : "");
+        if (typeof storedBaseUrl === "string" && storedBaseUrl.trim()) {
+          setPublicBaseUrl(storedBaseUrl.trim());
+          localStorage.setItem("kreatly_public_base_url", storedBaseUrl.trim());
+        } else {
+          const localBaseUrl = localStorage.getItem("kreatly_public_base_url");
+          if (localBaseUrl?.trim()) {
+            setPublicBaseUrl(localBaseUrl.trim());
+          }
+        }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load Voice DNA.");
       } finally {
@@ -55,15 +66,19 @@ export default function SettingsPage() {
     setIsSaving(true);
     setError(null);
     try {
+      const normalizedBaseUrl = normalizeBaseUrl(publicBaseUrl);
       const userRef = doc(db, "users", user.uid);
       await setDoc(
         userRef,
         {
           voiceBio: voiceBio.trim(),
+          publicBaseUrl: normalizedBaseUrl,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
       );
+      localStorage.setItem("kreatly_public_base_url", normalizedBaseUrl);
+      setPublicBaseUrl(normalizedBaseUrl);
 
       setShowToast(true);
       if (toastTimeoutRef.current) {
@@ -102,6 +117,23 @@ export default function SettingsPage() {
             className="mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500"
           />
         </div>
+        <div className="mt-6">
+          <label htmlFor="public-base-url" className="text-sm font-medium text-zinc-200">
+            Public Site URL
+          </label>
+          <input
+            id="public-base-url"
+            type="url"
+            value={publicBaseUrl}
+            onChange={(event) => setPublicBaseUrl(event.target.value)}
+            placeholder="https://yourdomain.com"
+            disabled={isLoading}
+            className="mt-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500"
+          />
+          <p className="mt-2 text-xs text-zinc-500">
+            Used for publish links and canonical metadata when posts are published.
+          </p>
+        </div>
 
         <button
           type="button"
@@ -122,4 +154,15 @@ export default function SettingsPage() {
       ) : null}
     </main>
   );
+}
+
+function normalizeBaseUrl(value: string): string {
+  const raw = value.trim() || "https://kreatly.vercel.app";
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProtocol);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return "https://kreatly.vercel.app";
+  }
 }

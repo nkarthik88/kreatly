@@ -16,6 +16,7 @@ type PublicStory = {
   seoDescription: string;
   ogImage: string | null;
   updatedAt: string | null;
+  publicBaseUrl: string;
 };
 
 const firebaseConfig = {
@@ -30,7 +31,8 @@ const firebaseConfig = {
 
 const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const firestore = getFirestore(firebaseApp);
-const publicBaseUrl = "https://kreatly.vercel.app";
+const publicBaseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kreatly.vercel.app";
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[\s-]+/g, "_");
@@ -149,6 +151,10 @@ async function loadFromFirestore(slug: string): Promise<PublicStory | null> {
     const seoDescription = String(data?.seoDescription || content.slice(0, 180));
     const ogImage =
       typeof data?.ogImage === "string" && data.ogImage.trim() ? data.ogImage : null;
+    const savedPublicBaseUrl =
+      typeof data?.publicBaseUrl === "string" && data.publicBaseUrl.trim()
+        ? normalizeBaseUrl(data.publicBaseUrl)
+        : publicBaseUrl;
 
     return {
       slug,
@@ -158,6 +164,7 @@ async function loadFromFirestore(slug: string): Promise<PublicStory | null> {
       seoDescription,
       ogImage,
       updatedAt: null,
+      publicBaseUrl: savedPublicBaseUrl,
     };
   } catch {
     return null;
@@ -234,6 +241,7 @@ async function loadFromNotion(slug: string): Promise<PublicStory | null> {
         seoDescription,
         ogImage: ogImage || null,
         updatedAt: page?.last_edited_time || null,
+        publicBaseUrl,
       };
     }
     return null;
@@ -258,8 +266,8 @@ export async function generateMetadata({ params }: BlogParams): Promise<Metadata
     };
   }
 
-  const canonical = `${publicBaseUrl}/b/${post.slug}`;
-  const image = post.ogImage || `${publicBaseUrl}/og-default.png`;
+  const canonical = `${post.publicBaseUrl}/b/${post.slug}`;
+  const image = post.ogImage || `${post.publicBaseUrl}/og-default.png`;
 
   return {
     title: post.seoTitle,
@@ -280,6 +288,17 @@ export async function generateMetadata({ params }: BlogParams): Promise<Metadata
       images: [image],
     },
   };
+}
+
+function normalizeBaseUrl(value: string): string {
+  const raw = value.trim() || publicBaseUrl;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProtocol);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return publicBaseUrl;
+  }
 }
 
 export default async function PublicBlogPostPage({ params }: BlogParams) {
