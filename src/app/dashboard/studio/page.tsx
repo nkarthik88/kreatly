@@ -127,6 +127,36 @@ export default function StudioPage() {
     }
   }
 
+  useEffect(() => {
+    if (!selectedId) return;
+    const cached = localStorage.getItem(`kreatly_writer_${selectedId}`);
+    if (!cached) return;
+
+    try {
+      const parsed = JSON.parse(cached) as {
+        storyContent?: string;
+        generatedContent?: string;
+      };
+      if (typeof parsed.storyContent === "string") {
+        setStoryContent(parsed.storyContent);
+      }
+      if (typeof parsed.generatedContent === "string") {
+        setGeneratedContent(parsed.generatedContent);
+      }
+    } catch {
+      // ignore invalid cache
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const payload = {
+      storyContent,
+      generatedContent,
+    };
+    localStorage.setItem(`kreatly_writer_${selectedId}`, JSON.stringify(payload));
+  }, [selectedId, storyContent, generatedContent]);
+
   async function handleSelectStory(id: string, sourceStories?: Story[]) {
     const availableStories = sourceStories ?? stories;
     const chosen = availableStories.find((story) => story.id === id);
@@ -138,6 +168,26 @@ export default function StudioPage() {
     setError(null);
 
     try {
+      const cached = localStorage.getItem(`kreatly_writer_${id}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as {
+            storyContent?: string;
+            generatedContent?: string;
+          };
+          if (typeof parsed.storyContent === "string" && parsed.storyContent.trim()) {
+            setStoryContent(parsed.storyContent);
+            if (typeof parsed.generatedContent === "string") {
+              setGeneratedContent(parsed.generatedContent);
+            }
+            setIsLoadingContent(false);
+            return;
+          }
+        } catch {
+          // ignore invalid cache
+        }
+      }
+
       const quickContent =
         typeof chosen?.content === "string" ? chosen.content.trim() : "";
       if (quickContent) {

@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
 // Hardcoded config per user instruction
 const firebaseConfig = {
@@ -16,7 +16,9 @@ const firebaseConfig = {
 // Initialize Firebase only once
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
 
 // Google provider
 const googleProvider = new GoogleAuthProvider();

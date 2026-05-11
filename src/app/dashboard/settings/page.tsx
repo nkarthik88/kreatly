@@ -1,13 +1,20 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  doc,
+  enableNetwork,
+  getDocFromServer,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [voiceBio, setVoiceBio] = useState("");
+  const [voiceBioSeed, setVoiceBioSeed] = useState("");
   const [publicBaseUrl, setPublicBaseUrl] = useState("https://kreatly.vercel.app");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -15,6 +22,8 @@ export default function SettingsPage() {
   const [showToast, setShowToast] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
   const hasEditedRef = useRef(false);
+  const voiceBioRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showSuccessMark, setShowSuccessMark] = useState(false);
 
   useEffect(() => {
     async function loadVoiceBio() {
@@ -26,16 +35,17 @@ export default function SettingsPage() {
       setIsLoading(true);
       setError(null);
       try {
+        await enableNetwork(db);
         const userRef = doc(db, "users", user.uid);
-        const snapshot = await withTimeout(
-          getDoc(userRef),
-          5000,
-          "Loading settings timed out. You can still edit and save.",
-        );
+        const snapshot = await getDocFromServer(userRef);
         const value = snapshot.data()?.voiceBio;
         const storedBaseUrl = snapshot.data()?.publicBaseUrl;
         if (!hasEditedRef.current) {
-          setVoiceBio(typeof value === "string" ? value : "");
+          const nextValue = typeof value === "string" ? value : "";
+          setVoiceBioSeed(nextValue);
+          if (voiceBioRef.current) {
+            voiceBioRef.current.value = nextValue;
+          }
         }
         if (!hasEditedRef.current) {
           if (typeof storedBaseUrl === "string" && storedBaseUrl.trim()) {
@@ -48,8 +58,11 @@ export default function SettingsPage() {
             }
           }
         }
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Failed to load Voice DNA.");
+      } catch {
+        const localBaseUrl = localStorage.getItem("kreatly_public_base_url");
+        if (localBaseUrl?.trim() && !hasEditedRef.current) {
+          setPublicBaseUrl(localBaseUrl.trim());
+        }
       } finally {
         setIsLoading(false);
       }
@@ -74,21 +87,21 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     setError(null);
+    setShowSuccessMark(true);
     try {
       const normalizedBaseUrl = normalizeBaseUrl(publicBaseUrl);
+      const voiceBioValue = sanitizeVoiceBio(
+        voiceBioRef.current?.value ?? voiceBioSeed,
+      );
       const userRef = doc(db, "users", user.uid);
-      await withTimeout(
-        setDoc(
-          userRef,
-          {
-            voiceBio: voiceBio.trim(),
-            publicBaseUrl: normalizedBaseUrl,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        ),
-        6000,
-        "Saving took too long. Please try again.",
+      await setDoc(
+        userRef,
+        {
+          voiceBio: voiceBioValue,
+          publicBaseUrl: normalizedBaseUrl,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
       );
       localStorage.setItem("kreatly_public_base_url", normalizedBaseUrl);
       setPublicBaseUrl(normalizedBaseUrl);
@@ -102,9 +115,27 @@ export default function SettingsPage() {
       }, 1500);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save Voice DNA.");
+      setShowSuccessMark(false);
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleCleanPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    event.preventDefault();
+    const clipboardText = event.clipboardData.getData("text/plain");
+    const cleaned = sanitizeVoiceBio(clipboardText);
+    const textarea = voiceBioRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const nextValue =
+      textarea.value.slice(0, start) + cleaned + textarea.value.slice(end);
+    textarea.value = nextValue;
+    const nextCursor = start + cleaned.length;
+    textarea.setSelectionRange(nextCursor, nextCursor);
+    hasEditedRef.current = true;
   }
 
   return (
@@ -123,11 +154,12 @@ export default function SettingsPage() {
           <textarea
             id="voice-bio"
             rows={10}
-            value={voiceBio}
-            onChange={(event) => {
+            ref={voiceBioRef}
+            defaultValue={voiceBioSeed}
+            onChange={() => {
               hasEditedRef.current = true;
-              setVoiceBio(event.target.value);
             }}
+            onPaste={handleCleanPaste}
             placeholder="Paste your best writing samples here..."
             disabled={isLoading}
             className="mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500 disabled:cursor-not-allowed"
@@ -160,7 +192,10 @@ export default function SettingsPage() {
           disabled={isSaving || isLoading}
           className="mt-6 rounded-md border border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-200 transition-colors hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSaving ? "Saving..." : "Save Voice DNA"}
+          <span className="inline-flex items-center gap-2">
+            {showSuccessMark ? <Check className="h-4 w-4 text-emerald-300" /> : null}
+            {isSaving ? "Saving..." : "Save Voice DNA"}
+          </span>
         </button>
 
         {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
@@ -186,17 +221,11 @@ function normalizeBaseUrl(value: string): string {
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  let timer: number | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(() => reject(new Error(message)), ms);
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) {
-      window.clearTimeout(timer);
-    }
-  }
+function sanitizeVoiceBio(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\r\n/g, "\n")
+    .trim();
 }
