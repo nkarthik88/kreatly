@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, ExternalLink, Plus } from "lucide-react";
 import Link from "next/link";
-import { doc, serverTimestamp, setDoc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type Story = {
@@ -32,7 +41,7 @@ export default function BlogsPage() {
   const publishedStories = stories.filter((story) => story.isPublished && story.slug);
 
   useEffect(() => {
-    void handleSync();
+    void loadBlogsFromFirestore();
   }, []);
 
   useEffect(() => {
@@ -70,72 +79,39 @@ export default function BlogsPage() {
     void handleSync();
   }
 
-  async function handleSync() {
-    setIsSyncing(true);
+  async function loadBlogsFromFirestore() {
     setError(null);
-
     try {
-      const setupRaw =
-        localStorage.getItem("kreatly_setup") ||
-        sessionStorage.getItem("kreatly_setup");
-      const setupConfig = setupRaw ? JSON.parse(setupRaw) : null;
+      const blogsCol = collection(db, "blogs");
+      const q = query(blogsCol, orderBy("lastEdited", "desc"));
+      const snapshot = await getDocs(q);
 
-      const res = await fetch("/api/notion/sync", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          databaseId: setupConfig?.databaseId,
-        }),
+      const mapped: Story[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data() as any;
+        const title = (data.title as string) || "Untitled Post";
+        const slug =
+          (data.slug as string) || docSnap.id.replace(/-/g, "").toLowerCase();
+        const status = (data.status as string) || "Draft";
+        const isPublishedFromStatus = status.toLowerCase().includes("publish");
+        const isPublished =
+          typeof data.isPublished === "boolean"
+            ? data.isPublished
+            : isPublishedFromStatus;
+
+        return {
+          id: docSnap.id,
+          title,
+          slug,
+          content: (data.content as string) || "",
+          seoTitle: (data.seoTitle as string) || title,
+          seoDescription: (data.seoDescription as string) || "",
+          ogImage: (data.coverImage as string) || data.ogImage || null,
+          isPublished,
+          lastEdited: (data.lastEdited as string) || (data.date as string) || null,
+          publishStatus: status || (isPublished ? "Published" : "Draft"),
+        };
       });
-      let data = await res.json();
 
-      if ((!res.ok || data?.success === false) && setupConfig?.databaseId) {
-        // Retry with server-side fallback ID from env/local configuration.
-        const fallbackRes = await fetch("/api/notion/sync", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        const fallbackData = await fallbackRes.json();
-        if (fallbackRes.ok && fallbackData?.success !== false) {
-          data = fallbackData;
-        } else {
-          throw new Error(
-            fallbackData?.message || data?.message || "Failed to sync Notion",
-          );
-        }
-      }
-
-      const items = Array.isArray(data?.items) ? data.items : [];
-      const mapped: Story[] = items.map((item: any) => ({
-        id: item.id,
-        title:
-          item.title ||
-          item.Name ||
-          item.name ||
-          item?.properties?.title?.[0]?.plain_text ||
-          item?.properties?.Name?.title?.[0]?.plain_text ||
-          item?.properties?.Title?.title?.[0]?.plain_text ||
-          "",
-        slug: item.slug || item.id?.replace(/-/g, "").toLowerCase() || "",
-        content: typeof item.content === "string" ? item.content : "",
-        seoTitle:
-          typeof item.seo_title === "string" && item.seo_title.trim()
-            ? item.seo_title
-            : item.title || "Untitled Post",
-        seoDescription:
-          typeof item.seo_description === "string" && item.seo_description.trim()
-            ? item.seo_description
-            : typeof item.content === "string"
-              ? item.content.slice(0, 180)
-              : "",
-        ogImage: typeof item.og_image === "string" && item.og_image.trim() ? item.og_image : null,
-        isPublished: Boolean(item.is_published),
-        lastEdited: item.last_edited_time || null,
-        publishStatus: item.publish_status || "Draft",
-      }));
       const mergedWithOverrides = await Promise.all(
         mapped.map(async (story) => {
           if (!story.slug) return story;
@@ -162,11 +138,41 @@ export default function BlogsPage() {
       sessionStorage.setItem("kreatly_blog_rows", JSON.stringify(mergedWithOverrides));
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to sync Notion";
+        err instanceof Error ? err.message : "Failed to load blogs from Firestore.";
       setError(message);
       setStories([]);
       localStorage.removeItem("kreatly_blog_rows");
       sessionStorage.removeItem("kreatly_blog_rows");
+    }
+  }
+
+  async function handleSync() {
+    setIsSyncing(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/notion/sync", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || "Failed to sync Notion");
+      }
+
+      const count = typeof data?.count === "number" ? data.count : 0;
+      openToast(
+        count > 0
+          ? `Synced ${count} posts from Notion.`
+          : "Connection to Notion verified. No posts synced.",
+      );
+
+      await loadBlogsFromFirestore();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to sync Notion";
+      setError(message);
     } finally {
       setIsSyncing(false);
     }
