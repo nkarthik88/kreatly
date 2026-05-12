@@ -126,29 +126,63 @@ function extractCover(page: any): string | null {
 
 async function syncOnce() {
   const secret = process.env.NOTION_SECRET;
-  const databaseId = process.env.NOTION_DATABASE_ID;
+  const rawDbId = process.env.NOTION_DATABASE_ID;
 
-  if (!secret || !databaseId) {
+  if (!secret || !rawDbId) {
     return NextResponse.json(
       { error: "Missing Environment Variables" },
       { status: 400 },
     );
   }
 
+  const dbId = rawDbId.trim();
+  // IMPORTANT: NOTION_DATABASE_ID must be the bare 32-character ID from the
+  // database URL, without any trailing query params like "?v=...".
+  // Example: 35ce111fb3bd80809f36cd88d4fdf68d
+  // eslint-disable-next-line no-console
+  console.log("Using DB ID:", dbId);
+
   const notion = new Client({ auth: secret });
-  const pages: any[] = [];
-  let cursor: string | undefined;
 
-  do {
-    const resp: any = await notion.databases.query({
-      database_id: databaseId,
-      page_size: 50,
-      start_cursor: cursor,
-    } as any);
-    pages.push(...(resp.results ?? []));
-    cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
-  } while (cursor);
+  const notionQuery = (async () => {
+    const pages: any[] = [];
+    let cursor: string | undefined;
 
+    do {
+      const resp: any = await notion.databases.query({
+        database_id: dbId,
+        page_size: 50,
+        start_cursor: cursor,
+      } as any);
+      pages.push(...(resp.results ?? []));
+      cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+    } while (cursor);
+
+    return pages;
+  })();
+
+  const notionTimeoutMs = 8000;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(
+        new Error(
+          'Notion is taking too long. Please check if the Database ID is correct and if the "Kreatly" connection is invited to the page.',
+        ),
+      );
+    }, notionTimeoutMs);
+  });
+
+  let pages: any[];
+  try {
+    pages = await Promise.race([notionQuery, timeoutPromise]);
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    // eslint-disable-next-line no-console
+    console.error("[api/notion/sync] Notion query error:", message);
+    return NextResponse.json({ error: message }, { status: 504 });
+  }
+
+  // eslint-disable-next-line no-console
   console.log(`[api/notion/sync] Notion pages fetched: ${pages.length}`);
 
   const mapped = pages.map((page: any) => {
@@ -181,6 +215,7 @@ async function syncOnce() {
     }
     await batch.commit();
   } catch (firestoreError) {
+    // eslint-disable-next-line no-console
     console.error(
       "[api/notion/sync] Firestore batch write failed",
       firestoreError,
@@ -204,28 +239,7 @@ async function syncOnce() {
 
 export async function POST() {
   try {
-    const timeoutMs = 8000;
-    const timeout = new Promise<ReturnType<typeof NextResponse.json>>(
-      (resolve) => {
-        setTimeout(() => {
-          console.error(
-            "[api/notion/sync] Timeout reached while syncing Notion",
-          );
-          resolve(
-            NextResponse.json(
-              {
-                error:
-                  "Sync timed out while talking to Notion or Firestore.",
-              },
-              { status: 504 },
-            ),
-          );
-        }, timeoutMs);
-      },
-    );
-
-    const result = await Promise.race([syncOnce(), timeout]);
-    return result;
+    return await syncOnce();
   } catch (error: any) {
     console.error("[api/notion/sync] Unhandled error", error);
     return NextResponse.json(
