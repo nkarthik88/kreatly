@@ -124,84 +124,108 @@ function extractCover(page: any): string | null {
   return null;
 }
 
+async function syncOnce() {
+  const secret = process.env.NOTION_SECRET;
+  const databaseId = process.env.NOTION_DATABASE_ID;
+
+  if (!secret || !databaseId) {
+    return NextResponse.json(
+      { error: "Missing Environment Variables" },
+      { status: 400 },
+    );
+  }
+
+  const notion = new Client({ auth: secret });
+  const pages: any[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const resp: any = await notion.databases.query({
+      database_id: databaseId,
+      page_size: 50,
+      start_cursor: cursor,
+    } as any);
+    pages.push(...(resp.results ?? []));
+    cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+  } while (cursor);
+
+  console.log(`[api/notion/sync] Notion pages fetched: ${pages.length}`);
+
+  const mapped = pages.map((page: any) => {
+    const properties = page?.properties || {};
+    const title = extractTitle(properties);
+    const slugProp = extractText(properties, ["Slug", "slug", "URL Slug"]);
+    const slug = toSlug(slugProp || title, page.id);
+    const date = extractDate(properties, page?.last_edited_time ?? null);
+    const { status, isPublished } = extractStatus(properties);
+    const coverImage = extractCover(page);
+
+    return {
+      id: page.id,
+      title,
+      slug,
+      status,
+      isPublished,
+      date,
+      coverImage,
+      lastEdited: date,
+    };
+  });
+
+  try {
+    const batch = writeBatch(db);
+    const blogsCol = collection(db, "blogs");
+    for (const item of mapped) {
+      const ref = doc(blogsCol, item.id);
+      batch.set(ref, item, { merge: true });
+    }
+    await batch.commit();
+  } catch (firestoreError) {
+    console.error(
+      "[api/notion/sync] Firestore batch write failed",
+      firestoreError,
+    );
+    return NextResponse.json(
+      {
+        error:
+          firestoreError instanceof Error
+            ? firestoreError.message
+            : "Failed to write to Firestore",
+      },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json(
+    { success: true, count: mapped.length },
+    { status: 200 },
+  );
+}
+
 export async function POST() {
   try {
-    const secret = process.env.NOTION_SECRET;
-    const databaseId = process.env.NOTION_DATABASE_ID;
-
-    if (!secret || !databaseId) {
-      return NextResponse.json(
-        { error: "Missing Environment Variables" },
-        { status: 400 },
-      );
-    }
-
-    const notion = new Client({ auth: secret });
-    const pages: any[] = [];
-    let cursor: string | undefined;
-
-    do {
-      const resp: any = await notion.databases.query({
-        database_id: databaseId,
-        page_size: 50,
-        start_cursor: cursor,
-      } as any);
-      pages.push(...(resp.results ?? []));
-      cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
-    } while (cursor);
-
-    console.log(`[api/notion/sync] Notion pages fetched: ${pages.length}`);
-
-    const mapped = pages.map((page: any) => {
-      const properties = page?.properties || {};
-      const title = extractTitle(properties);
-      const slugProp = extractText(properties, ["Slug", "slug", "URL Slug"]);
-      const slug = toSlug(slugProp || title, page.id);
-      const date = extractDate(properties, page?.last_edited_time ?? null);
-      const { status, isPublished } = extractStatus(properties);
-      const coverImage = extractCover(page);
-
-      return {
-        id: page.id,
-        title,
-        slug,
-        status,
-        isPublished,
-        date,
-        coverImage,
-        lastEdited: date,
-      };
-    });
-
-    // Fast concurrent Firestore write via batch
-    try {
-      const batch = writeBatch(db);
-      const blogsCol = collection(db, "blogs");
-      for (const item of mapped) {
-        const ref = doc(blogsCol, item.id);
-        batch.set(ref, item, { merge: true });
-      }
-      await batch.commit();
-    } catch (firestoreError) {
-      console.error(
-        "[api/notion/sync] Firestore batch write failed",
-        firestoreError,
-      );
-      return NextResponse.json(
-        {
-          error:
-            firestoreError instanceof Error
-              ? firestoreError.message
-              : "Failed to write to Firestore",
-        },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json(
-      { success: true, count: mapped.length },
-      { status: 200 },
+    const timeoutMs = 8000;
+    const timeout = new Promise<ReturnType<typeof NextResponse.json>>(
+      (resolve) => {
+        setTimeout(() => {
+          console.error(
+            "[api/notion/sync] Timeout reached while syncing Notion",
+          );
+          resolve(
+            NextResponse.json(
+              {
+                error:
+                  "Sync timed out while talking to Notion or Firestore.",
+              },
+              { status: 504 },
+            ),
+          );
+        }, timeoutMs);
+      },
     );
+
+    const result = await Promise.race([syncOnce(), timeout]);
+    return result;
   } catch (error: any) {
     console.error("[api/notion/sync] Unhandled error", error);
     return NextResponse.json(
