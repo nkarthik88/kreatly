@@ -9,11 +9,12 @@ const quickStats = [
   { label: "Connected Domains", value: "2" },
 ];
 
-export default function DashboardHomePage() {
+export default function DashboardPage() {
   const { user } = useAuth();
+
   const name =
     user?.displayName ||
-    user?.email?.split("@")[0] ||
+    (user?.email ? user.email.split("@")[0] : null) ||
     "Creator";
 
   return (
@@ -23,7 +24,8 @@ export default function DashboardHomePage() {
           Welcome back, {name}!
         </h1>
         <p className="text-sm text-zinc-500">
-          Your newsroom OS is ready. Here&apos;s a quick snapshot of how your Kreatly site is doing.
+          Your newsroom OS is ready. Here&apos;s a quick snapshot of how your Kreatly
+          site is doing.
         </p>
       </header>
 
@@ -31,22 +33,16 @@ export default function DashboardHomePage() {
         {quickStats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-lg border border-zinc-200 bg-white px-4 py-3 shadow-sm"
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-4 shadow-sm"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
               {stat.label}
             </p>
-            <p className="mt-2 text-xl font-semibold text-black">{stat.value}</p>
+            <p className="mt-3 text-2xl font-semibold text-black">{stat.value}</p>
           </div>
         ))}
       </section>
     </div>
   );
-}
-
-import { redirect } from "next/navigation";
-
-export default function DashboardPage() {
-  redirect("/dashboard/setup");
 }
 
