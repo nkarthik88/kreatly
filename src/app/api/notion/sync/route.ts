@@ -112,16 +112,27 @@ function extractCover(page: any): string | null {
 }
 
 export async function POST(request: Request) {
+  // eslint-disable-next-line no-console
+  console.log("[api/notion/sync] POST called");
+
   try {
     const secret = process.env.NOTION_SECRET;
     const databaseId = process.env.NOTION_DATABASE_ID;
 
+    // eslint-disable-next-line no-console
+    console.log("[api/notion/sync] Checking environment variables...");
+
     if (!secret || !databaseId) {
+      // eslint-disable-next-line no-console
+      console.log("[api/notion/sync] Missing NOTION_SECRET or NOTION_DATABASE_ID");
       return NextResponse.json(
         { success: false, message: "Missing Notion Credentials" },
         { status: 400 },
       );
     }
+
+    // eslint-disable-next-line no-console
+    console.log("[api/notion/sync] Creating Notion client and starting query loop...");
 
     const notion = new Client({ auth: secret });
     const allPages: any[] = [];
@@ -129,6 +140,11 @@ export async function POST(request: Request) {
 
     // Fetch all pages from the Notion database with pagination.
     do {
+      // eslint-disable-next-line no-console
+      console.log(
+        "[api/notion/sync] Querying Notion database page with cursor:",
+        cursor || "start",
+      );
       const response: any = await notion.databases.query({
         database_id: databaseId,
         page_size: 50,
@@ -139,41 +155,86 @@ export async function POST(request: Request) {
       cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
     } while (cursor);
 
+    // eslint-disable-next-line no-console
+    console.log(
+      `[api/notion/sync] Found ${allPages.length} pages in Notion`,
+    );
+
     const blogsCollection = collection(db, "blogs");
     let syncedCount = 0;
 
-    await Promise.all(
-      allPages.map(async (page: any) => {
-        const properties = page?.properties || {};
-        const title = extractTitle(properties);
-        const slugProp =
-          extractText(properties, ["Slug", "slug", "URL Slug"]) || toSlug(title || page.id);
-        const date = extractDate(properties) ?? page?.last_edited_time ?? null;
-        const { status, isPublished } = extractStatus(properties);
-        const coverImage = extractCover(page);
+    // Save each page to Firestore, aborting on the first Firestore error.
+    // This keeps the behavior predictable and surfaces permission issues clearly.
+    for (const page of allPages) {
+      const properties = page?.properties || {};
+      const title = extractTitle(properties);
+      const slugProp =
+        extractText(properties, ["Slug", "slug", "URL Slug"]) || toSlug(title || page.id);
+      const date = extractDate(properties) ?? page?.last_edited_time ?? null;
+      const { status, isPublished } = extractStatus(properties);
+      const coverImage = extractCover(page);
 
+      const payload = {
+        id: page.id,
+        title,
+        slug: slugProp,
+        status,
+        isPublished,
+        date,
+        coverImage,
+        lastEdited: page?.last_edited_time ?? null,
+        seoTitle: title,
+        seoDescription: "",
+        content: "",
+        syncedAt: serverTimestamp(),
+      } as const;
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "[api/notion/sync] Writing page to Firestore blogs collection:",
+        page.id,
+        payload,
+      );
+
+      try {
         const docRef = doc(blogsCollection, page.id);
-        await setDoc(
-          docRef,
-          {
-            id: page.id,
-            title,
-            slug: slugProp,
-            status,
-            isPublished,
-            date,
-            coverImage,
-            lastEdited: page?.last_edited_time ?? null,
-            seoTitle: title,
-            seoDescription: "",
-            content: "",
-            syncedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-
+        await setDoc(docRef, payload, { merge: true });
         syncedCount += 1;
-      }),
+      } catch (firestoreError: any) {
+        const code = firestoreError?.code;
+        const message =
+          firestoreError?.message || "Failed to save Notion page to Firestore.";
+
+        // eslint-disable-next-line no-console
+        console.error("[api/notion/sync] Firestore error while saving page:", {
+          id: page.id,
+          code,
+          message,
+        });
+
+        if (code === "permission-denied") {
+          return NextResponse.json(
+            {
+              success: false,
+              message: `Firestore permission denied: ${message}`,
+            },
+            { status: 403 },
+          );
+        }
+
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Firestore error: ${message}`,
+          },
+          { status: 500 },
+        );
+      }
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[api/notion/sync] Sync completed successfully. Synced ${syncedCount} pages.`,
     );
 
     return NextResponse.json(
@@ -184,6 +245,9 @@ export async function POST(request: Request) {
       { status: 200 },
     );
   } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.error("[api/notion/sync] Unhandled error:", error);
+
     return NextResponse.json(
       {
         success: false,

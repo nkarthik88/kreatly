@@ -76,10 +76,14 @@ export default function BlogsPage() {
     sessionStorage.removeItem("kreatly_blog_rows");
     setStories([]);
     setError(null);
+    // eslint-disable-next-line no-console
+    console.log("[BlogsPage] Clear cache & resync clicked");
     void handleSync();
   }
 
   async function loadBlogsFromFirestore() {
+    // eslint-disable-next-line no-console
+    console.log("[BlogsPage] loadBlogsFromFirestore: start");
     setError(null);
     try {
       const blogsCol = collection(db, "blogs");
@@ -136,6 +140,11 @@ export default function BlogsPage() {
       setStories(mergedWithOverrides);
       localStorage.setItem("kreatly_blog_rows", JSON.stringify(mergedWithOverrides));
       sessionStorage.setItem("kreatly_blog_rows", JSON.stringify(mergedWithOverrides));
+      // eslint-disable-next-line no-console
+      console.log(
+        "[BlogsPage] loadBlogsFromFirestore: loaded stories",
+        mergedWithOverrides.length,
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load blogs from Firestore.";
@@ -143,38 +152,61 @@ export default function BlogsPage() {
       setStories([]);
       localStorage.removeItem("kreatly_blog_rows");
       sessionStorage.removeItem("kreatly_blog_rows");
+      // eslint-disable-next-line no-console
+      console.error("[BlogsPage] loadBlogsFromFirestore: error", err);
     }
   }
 
   async function handleSync() {
+    // eslint-disable-next-line no-console
+    console.log("[BlogsPage] handleSync: start");
     setIsSyncing(true);
     setError(null);
 
     try {
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: calling /api/notion/sync");
       const res = await fetch("/api/notion/sync", {
         method: "POST",
         cache: "no-store",
       });
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: response received", res.status);
       const data = await res.json();
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: parsed response body", data);
 
       if (!res.ok || data?.success === false) {
         throw new Error(data?.message || "Failed to sync Notion");
       }
 
       const count = typeof data?.count === "number" ? data.count : 0;
-      openToast(
+      const successMessage =
         count > 0
-          ? `Synced ${count} posts from Notion.`
-          : "Connection to Notion verified. No posts synced.",
-      );
+          ? `Sync complete. ${count} posts synced from Notion.`
+          : "Sync complete. Connection to Notion verified but no posts were synced.";
+      openToast(successMessage);
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: success", { count });
 
       await loadBlogsFromFirestore();
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: finished reloading blogs");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to sync Notion";
       setError(message);
+      openToast(message);
+      // eslint-disable-next-line no-console
+      console.error("[BlogsPage] handleSync: error", err);
+      if (typeof window !== "undefined") {
+        // Surface critical failures to the user explicitly.
+        window.alert(message);
+      }
     } finally {
       setIsSyncing(false);
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: end");
     }
   }
 
