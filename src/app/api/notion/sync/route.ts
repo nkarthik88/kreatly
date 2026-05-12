@@ -1,33 +1,45 @@
-import { Client } from "@notionhq/client";
-import { NextResponse } from "next/server";
-import { collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-
 export const dynamic = "force-dynamic";
+
+import { NextResponse } from "next/server";
+import { Client } from "@notionhq/client";
+import { collection, doc, writeBatch } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, "");
 }
 
 function extractTitle(properties: any): string {
-  const candidates = ["title", "name"];
-  for (const key of Object.keys(properties || {})) {
-    const value = (properties as any)[key];
-    if (value?.type === "title" && candidates.includes(normalizeKey(key))) {
-      return (value.title || [])
-        .map((t: any) => t?.plain_text || "")
-        .join("")
-        .trim();
+  const entries = Object.entries(properties || {});
+  const preferredKeys = ["title", "name"];
+
+  for (const [key, value] of entries) {
+    const prop: any = value;
+    if (
+      prop?.type === "title" &&
+      preferredKeys.includes(normalizeKey(key))
+    ) {
+      return (
+        prop.title
+          ?.map((t: any) => t?.plain_text || "")
+          .join("")
+          .trim() || "Untitled"
+      );
     }
   }
-  for (const value of Object.values(properties || {})) {
-    if ((value as any)?.type === "title") {
-      return ((value as any).title || [])
-        .map((t: any) => t?.plain_text || "")
-        .join("")
-        .trim();
+
+  for (const [, value] of entries) {
+    const prop: any = value;
+    if (prop?.type === "title") {
+      return (
+        prop.title
+          ?.map((t: any) => t?.plain_text || "")
+          .join("")
+          .trim() || "Untitled"
+      );
     }
   }
+
   return "Untitled";
 }
 
@@ -52,17 +64,18 @@ function extractText(properties: any, keys: string[]): string {
   return "";
 }
 
-function toSlug(value: string): string {
-  return value
+function toSlug(value: string, fallbackId: string): string {
+  const base = value || fallbackId;
+  return base
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .slice(0, 120);
+    .slice(0, 120) || fallbackId.replace(/-/g, "").toLowerCase();
 }
 
-function extractDate(properties: any): string | null {
+function extractDate(properties: any, fallback: string | null): string | null {
   const preferred = ["date", "published", "publishedat", "publishdate"];
   for (const [key, value] of Object.entries(properties || {})) {
     const prop: any = value;
@@ -77,7 +90,7 @@ function extractDate(properties: any): string | null {
       return prop.date.start;
     }
   }
-  return null;
+  return fallback;
 }
 
 function extractStatus(properties: any): { status: string; isPublished: boolean } {
@@ -111,162 +124,98 @@ function extractCover(page: any): string | null {
   return null;
 }
 
-export async function POST(request: Request) {
-  // eslint-disable-next-line no-console
-  console.log("[api/notion/sync] POST called");
-
+export async function POST() {
   try {
     const secret = process.env.NOTION_SECRET;
     const databaseId = process.env.NOTION_DATABASE_ID;
 
-    // eslint-disable-next-line no-console
-    console.log("[api/notion/sync] Checking environment variables...");
-
     if (!secret || !databaseId) {
-      // eslint-disable-next-line no-console
-      console.log("[api/notion/sync] Missing NOTION_SECRET or NOTION_DATABASE_ID");
       return NextResponse.json(
-        {
-          success: false,
-          error: "Missing Notion Credentials",
-          message: "Missing Notion Credentials",
-        },
+        { error: "Missing Environment Variables" },
         { status: 400 },
       );
     }
 
-    // eslint-disable-next-line no-console
-    console.log("[api/notion/sync] Creating Notion client and starting query loop...");
-
     const notion = new Client({ auth: secret });
-    const allPages: any[] = [];
-    let cursor: string | undefined = undefined;
+    const pages: any[] = [];
+    let cursor: string | undefined;
 
-    // Fetch all pages from the Notion database with pagination.
     do {
-      // eslint-disable-next-line no-console
-      console.log(
-        "[api/notion/sync] Querying Notion database page with cursor:",
-        cursor || "start",
-      );
-      const response: any = await notion.databases.query({
+      const resp: any = await notion.databases.query({
         database_id: databaseId,
         page_size: 50,
         start_cursor: cursor,
       } as any);
-
-      allPages.push(...(response.results ?? []));
-      cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+      pages.push(...(resp.results ?? []));
+      cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
     } while (cursor);
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[api/notion/sync] Found ${allPages.length} pages in Notion`,
-    );
+    console.log(`[api/notion/sync] Notion pages fetched: ${pages.length}`);
 
-    const blogsCollection = collection(db, "blogs");
-    let syncedCount = 0;
-
-    // Save each page to Firestore, aborting on the first Firestore error.
-    // This keeps the behavior predictable and surfaces permission issues clearly.
-    for (const page of allPages) {
+    const mapped = pages.map((page: any) => {
       const properties = page?.properties || {};
       const title = extractTitle(properties);
-      const slugProp =
-        extractText(properties, ["Slug", "slug", "URL Slug"]) || toSlug(title || page.id);
-      const date = extractDate(properties) ?? page?.last_edited_time ?? null;
+      const slugProp = extractText(properties, ["Slug", "slug", "URL Slug"]);
+      const slug = toSlug(slugProp || title, page.id);
+      const date = extractDate(properties, page?.last_edited_time ?? null);
       const { status, isPublished } = extractStatus(properties);
       const coverImage = extractCover(page);
 
-      const payload = {
+      return {
         id: page.id,
         title,
-        slug: slugProp,
+        slug,
         status,
         isPublished,
         date,
         coverImage,
-        lastEdited: page?.last_edited_time ?? null,
-        seoTitle: title,
-        seoDescription: "",
-        content: "",
-        syncedAt: serverTimestamp(),
-      } as const;
+        lastEdited: date,
+      };
+    });
 
-      // eslint-disable-next-line no-console
-      console.log(
-        "[api/notion/sync] Writing page to Firestore blogs collection:",
-        page.id,
-        payload,
-      );
-
-      try {
-        const docRef = doc(blogsCollection, page.id);
-        await setDoc(docRef, payload, { merge: true });
-        syncedCount += 1;
-      } catch (firestoreError: any) {
-        const code = firestoreError?.code;
-        const message =
-          firestoreError?.message || "Failed to save Notion page to Firestore.";
-
-        // eslint-disable-next-line no-console
-        console.error("[api/notion/sync] Firestore error while saving page:", {
-          id: page.id,
-          code,
-          message,
-        });
-
-        if (code === "permission-denied") {
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Firestore permission denied: ${message}`,
-              message: `Firestore permission denied: ${message}`,
-            },
-            { status: 403 },
-          );
-        }
-
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Firestore error: ${message}`,
-            message: `Firestore error: ${message}`,
-          },
-          { status: 500 },
-        );
+    // Fast concurrent Firestore write via batch
+    try {
+      const batch = writeBatch(db);
+      const blogsCol = collection(db, "blogs");
+      for (const item of mapped) {
+        const ref = doc(blogsCol, item.id);
+        batch.set(ref, item, { merge: true });
       }
+      await batch.commit();
+    } catch (firestoreError) {
+      console.error(
+        "[api/notion/sync] Firestore batch write failed",
+        firestoreError,
+      );
+      return NextResponse.json(
+        {
+          error:
+            firestoreError instanceof Error
+              ? firestoreError.message
+              : "Failed to write to Firestore",
+        },
+        { status: 500 },
+      );
     }
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[api/notion/sync] Sync completed successfully. Synced ${syncedCount} pages.`,
-    );
-
     return NextResponse.json(
-      {
-        success: true,
-        count: syncedCount,
-      },
+      { success: true, count: mapped.length },
       { status: 200 },
     );
   } catch (error: any) {
-    // eslint-disable-next-line no-console
-    console.error("[api/notion/sync] Unhandled error:", error);
-
+    console.error("[api/notion/sync] Unhandled error", error);
     return NextResponse.json(
       {
-        success: false,
         error:
           error instanceof Error
             ? error.message
-            : "An unknown error occurred",
+            : "Unknown backend error",
       },
       { status: 500 },
     );
   }
 }
 
-export async function GET(request: Request) {
-  return POST(request);
+export async function GET() {
+  return POST();
 }

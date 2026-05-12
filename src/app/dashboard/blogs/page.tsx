@@ -164,50 +164,54 @@ export default function BlogsPage() {
     setError(null);
 
     try {
-      // eslint-disable-next-line no-console
       console.log("[BlogsPage] handleSync: calling /api/notion/sync");
       const res = await fetch("/api/notion/sync", {
         method: "POST",
         cache: "no-store",
       });
-      // eslint-disable-next-line no-console
       console.log("[BlogsPage] handleSync: response received", res.status);
-      const rawText = await res.text();
-      // eslint-disable-next-line no-console
-      console.log("[BlogsPage] handleSync: raw response text", rawText);
 
-      let data: any;
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch (parseError) {
-        // eslint-disable-next-line no-console
-        console.error(
-          "[BlogsPage] handleSync: failed to parse JSON",
-          parseError,
-        );
-        throw new Error(`Server returned invalid JSON: ${rawText}`);
+      const contentType = res.headers.get("content-type");
+
+      if (!res.ok) {
+        if (contentType && contentType.includes("application/json")) {
+          let errData: any = {};
+          try {
+            errData = await res.json();
+          } catch {
+            // ignore JSON parse error here; fall back to generic
+          }
+          throw new Error(
+            errData?.error ||
+              errData?.message ||
+              "Sync failed on server",
+          );
+        } else {
+          const textError = await res.text();
+          throw new Error(
+            `Server Timeout (504) or Crash. Vercel says: ${textError.substring(
+              0,
+              80,
+            )}...`,
+          );
+        }
       }
 
-      // eslint-disable-next-line no-console
+      const data = contentType && contentType.includes("application/json")
+        ? await res.json()
+        : {};
+
       console.log("[BlogsPage] handleSync: parsed response body", data);
-
-      if (!res.ok || data?.success === false) {
-        throw new Error(
-          data?.error || data?.message || "Sync failed",
-        );
-      }
 
       const count = typeof data?.count === "number" ? data.count : 0;
       const successMessage =
         count > 0
           ? `Sync complete. ${count} posts synced from Notion.`
-          : "Sync complete. Connection to Notion verified but no posts were synced.";
+          : "Sync complete.";
       openToast(successMessage);
-      // eslint-disable-next-line no-console
       console.log("[BlogsPage] handleSync: success", { count });
 
       await loadBlogsFromFirestore();
-      // eslint-disable-next-line no-console
       console.log("[BlogsPage] handleSync: finished reloading blogs");
     } catch (err) {
       const message =
