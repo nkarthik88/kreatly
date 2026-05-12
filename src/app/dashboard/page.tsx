@@ -21,27 +21,20 @@ export default function DashboardPage() {
     "Creator";
 
   async function handleSyncNow() {
-    if (!user?.uid) return;
     setIsSyncing(true);
     setToast(null);
     try {
-      const response = await fetch("/api/notion/full-sync", {
+      const response = await fetch("/api/notion/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: user.uid }),
       });
       const data = await response.json();
       if (!response.ok || data?.success === false) {
-        throw new Error(data?.message || "Failed to sync Notion data.");
+        throw new Error(data?.message || "Failed to connect to Notion.");
       }
-      const postsCount = data?.counts?.posts ?? 0;
-      const pagesCount = data?.counts?.pages ?? 0;
-      setToast(
-        `Blog updated! ${postsCount} posts and ${pagesCount} pages synced.`,
-      );
+      setToast(String(data?.message || "Connection to Notion verified."));
     } catch (err) {
       setToast(
-        err instanceof Error ? err.message : "Failed to sync Notion data.",
+        err instanceof Error ? err.message : "Failed to connect to Notion.",
       );
     } finally {
       setIsSyncing(false);
