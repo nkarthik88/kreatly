@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.0",
-    "@notionhq/client": "^5.20.0",
+    "@notionhq/client": "^5.21.0",
     "@supabase/supabase-js": "^2.105.3",
     "firebase": "^12.13.0",
     "framer-motion": "^12.38.0",
