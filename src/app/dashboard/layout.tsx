@@ -5,23 +5,37 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { signOut } from "firebase/auth";
 import {
+  BarChart2,
+  Copy,
   FileText,
-  MessageSquare,
-  Mic,
-  PenSquare,
+  Globe,
+  LayoutGrid,
   Settings as SettingsIcon,
-  Sparkles,
+  Tag,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { auth } from "@/lib/firebase";
 
 const navItems = [
-  { label: "Blogs", href: "/dashboard/blogs", icon: FileText },
-  { label: "Writer", href: "/dashboard/studio", icon: PenSquare },
-  { label: "Interviews", href: "/dashboard/interviews", icon: Mic },
-  { label: "Meadow", href: "/dashboard/meadow", icon: Sparkles },
-  { label: "Replier", href: "/dashboard/replier", icon: MessageSquare },
-  { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
+  {
+    section: "Workspace",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
+      { label: "Content", href: "/dashboard/blogs", icon: FileText },
+      { label: "Pages", href: "/dashboard/pages", icon: Copy },
+      { label: "Tags", href: "/dashboard/tags", icon: Tag },
+      { label: "Authors", href: "/dashboard/authors", icon: Users },
+    ],
+  },
+  {
+    section: "Advanced",
+    items: [
+      { label: "Analytics", href: "/dashboard/analytics", icon: BarChart2 },
+      { label: "Domains", href: "/dashboard/domains", icon: Globe },
+      { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
+    ],
+  },
 ];
 
 export default function DashboardLayout({
@@ -32,8 +46,9 @@ export default function DashboardLayout({
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const flatItems = navItems.flatMap((group) => group.items);
   const breadcrumb =
-    navItems.find((item) => item.href === pathname)?.label || "Blogs";
+    flatItems.find((item) => item.href === pathname)?.label || "Dashboard";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -57,35 +72,47 @@ export default function DashboardLayout({
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-white text-black flex">
-      <aside className="fixed left-0 top-0 flex h-full w-[240px] flex-col border-r border-zinc-200 bg-white px-5 py-6">
-        <div className="mb-8 text-base font-semibold tracking-tight">Kreatly</div>
-        <nav className="flex-1 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.href === "/dashboard/interviews" &&
-                pathname.startsWith("/dashboard/transcriber")) ||
-              (item.href === "/dashboard/blogs" &&
-                (pathname.startsWith("/dashboard/archive") ||
-                  pathname.startsWith("/dashboard/blogs") ||
-                  pathname.startsWith("/dashboard/vault")));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "text-black"
-                    : "text-zinc-500 hover:text-black"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+    <div className="flex min-h-screen bg-white text-black">
+      <aside className="fixed left-0 top-0 flex h-full w-[260px] flex-col border-r border-zinc-200 bg-[#f8f9fa] px-6 py-6">
+        <div className="mb-6">
+          <div className="text-xl font-semibold tracking-tight text-black">
+            Kreatly
+          </div>
+          <Link
+            href="https://yourname.kreatly.blog"
+            target="_blank"
+            className="mt-1 inline-flex items-center text-xs font-medium text-sky-600 hover:underline"
+          >
+            yourname.kreatly.blog ↗
+          </Link>
+        </div>
+
+        <nav className="flex-1 space-y-6">
+          {navItems.map((group) => (
+            <div key={group.section} className="space-y-1">
+              <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                {group.section}
+              </p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-gray-200 text-sky-700"
+                        : "text-zinc-600 hover:bg-gray-200 hover:text-black"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className="mt-6 border-t border-zinc-200 pt-4">
           <p className="truncate text-xs text-zinc-500">{user?.email}</p>
@@ -98,11 +125,13 @@ export default function DashboardLayout({
           </button>
         </div>
       </aside>
-      <div className="ml-[240px] flex-1 bg-white">
+      <div className="ml-[260px] flex-1 bg-white">
         <div className="border-b border-zinc-200 px-10 py-4 text-sm text-zinc-500">
-          Kreatly / <span className="text-black">{breadcrumb}</span>
+          Kreatly / <span className="font-medium text-black">{breadcrumb}</span>
         </div>
-        <div className="bg-white">{children}</div>
+        <main className="bg-white px-10 py-10">
+          <div className="mx-auto max-w-[1000px]">{children}</div>
+        </main>
       </div>
     </div>
   );

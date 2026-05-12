@@ -13,12 +13,16 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
+import { useSearchParams } from "next/navigation";
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
 
   // UI state only (NOT the textarea value)
+  const initialNotionFromQuery = searchParams.get("notionUrl") || "";
   const [publicBaseUrl, setPublicBaseUrl] = useState("https://kreatly.vercel.app");
+  const [notionUrl, setNotionUrl] = useState(initialNotionFromQuery);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
@@ -65,6 +69,12 @@ export default function SettingsPage() {
           textRef.current.value = voice;
         }
 
+        const existingNotionUrl =
+          typeof data.notionUrl === "string" ? String(data.notionUrl) : "";
+        if (!initialNotionFromQuery && existingNotionUrl && !notionUrl) {
+          setNotionUrl(existingNotionUrl);
+        }
+
         const storedBase =
           typeof data.publicBaseUrl === "string" ? String(data.publicBaseUrl) : "";
         const localBase = localStorage.getItem("kreatly_public_base_url") || "";
@@ -85,7 +95,7 @@ export default function SettingsPage() {
 
     void loadInitialSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user?.uid, initialNotionFromQuery, notionUrl]);
 
   async function handleSave() {
     if (!user?.uid) {
@@ -113,6 +123,7 @@ export default function SettingsPage() {
         {
           voiceBio,
           publicBaseUrl: normalizedBase,
+          notionUrl: notionUrl.trim(),
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -177,6 +188,25 @@ export default function SettingsPage() {
             placeholder="Paste your best writing samples here..."
             className="mt-3 h-72 w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500"
           />
+        </div>
+
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-400">
+            Notion Integration
+          </p>
+          <div className="mt-3">
+            <label htmlFor="notion-url" className="text-sm font-medium text-zinc-200">
+              Notion Database/Page URL
+            </label>
+            <input
+              id="notion-url"
+              type="url"
+              value={notionUrl}
+              onChange={(event) => setNotionUrl(event.target.value)}
+              placeholder="Paste your Notion database or page URL"
+              className="mt-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-500"
+            />
+          </div>
         </div>
 
         <div className="mt-6">

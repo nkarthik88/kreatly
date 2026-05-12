@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { width: 320px; padding: 15px; font-family: sans-serif; } 
+    input, textarea, button { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; }
+    button { background: #111; color: white; border: none; cursor: pointer; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h4>Kreatly AI: Social Writer</h4>
+  <textarea id="draftText" rows="4" placeholder="Paste your Voice DNA draft here..."></textarea>
+  <button id="injectBtn">Inject Draft</button>
+  <hr style="margin: 15px 0;">
+  <h4>Kreatly Pro: Notion Sync</h4>
+  <input type="text" id="notionLink" placeholder="Waiting for Notion URL...">
+  <button id="syncNotionBtn">Connect to Kreatly</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
