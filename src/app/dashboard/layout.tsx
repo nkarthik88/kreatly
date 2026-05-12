@@ -51,6 +51,15 @@ export default function DashboardLayout({
 
   if (!user) return null;
 
+  // Hide sidebar during setup flow for a focused onboarding experience
+  if (pathname.startsWith("/dashboard/setup")) {
+    return (
+      <main className="min-h-screen bg-white px-10 py-10 text-black">
+        <div className="mx-auto max-w-[1000px]">{children}</div>
+      </main>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-white text-black">
       <aside className="fixed left-0 top-0 flex h-full w-[260px] flex-col border-r border-zinc-200 bg-[#f8f9fa] px-6 py-6">

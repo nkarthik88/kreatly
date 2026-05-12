@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { useState } from "react";
 
 const quickStats = [
   { label: "Total Visitors", value: "12,480" },
@@ -11,22 +12,62 @@ const quickStats = [
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const name =
     user?.displayName ||
     (user?.email ? user.email.split("@")[0] : null) ||
     "Creator";
 
+  async function handleSyncNow() {
+    if (!user?.uid) return;
+    setIsSyncing(true);
+    setToast(null);
+    try {
+      const response = await fetch("/api/notion/full-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid }),
+      });
+      const data = await response.json();
+      if (!response.ok || data?.success === false) {
+        throw new Error(data?.message || "Failed to sync Notion data.");
+      }
+      const postsCount = data?.counts?.posts ?? 0;
+      const pagesCount = data?.counts?.pages ?? 0;
+      setToast(
+        `Blog updated! ${postsCount} posts and ${pagesCount} pages synced.`,
+      );
+    } catch (err) {
+      setToast(
+        err instanceof Error ? err.message : "Failed to sync Notion data.",
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-black">
-          Welcome back, {name}!
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Your newsroom OS is ready. Here&apos;s a quick snapshot of how your Kreatly
-          site is doing.
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-black">
+            Welcome back, {name}!
+          </h1>
+          <p className="text-sm text-zinc-500">
+            Your newsroom OS is ready. Here&apos;s a quick snapshot of how your Kreatly
+            site is doing.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleSyncNow()}
+          disabled={isSyncing}
+          className="h-9 rounded-md border border-sky-600 bg-sky-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSyncing ? "Syncing your Notion data…" : "Sync Now"}
+        </button>
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -42,6 +83,10 @@ export default function DashboardPage() {
           </div>
         ))}
       </section>
+
+      {toast ? (
+        <p className="text-xs text-zinc-500">{toast}</p>
+      ) : null}
     </div>
   );
 }

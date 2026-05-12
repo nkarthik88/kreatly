@@ -1,7 +1,13 @@
 "use client";
 
 import type React from "react";
-import { Check } from "lucide-react";
+import {
+  Check,
+  Globe2,
+  LayoutGrid,
+  Settings as SettingsIcon,
+  Users,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   doc,
@@ -168,12 +174,49 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-black px-10 py-10 text-white">
-      <div className="mx-auto max-w-4xl rounded-xl border border-zinc-800 bg-zinc-950 p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Voice DNA Settings</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-400">
-          Paste 3-5 of your best past LinkedIn posts or Tweets here. Our AI will analyze your
-          sentence structure, vocabulary, and rhythm to sound exactly like you.
-        </p>
+      <div className="mx-auto max-w-4xl space-y-8">
+        {/* Settings home categories */}
+        <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Settings</h1>
+          <p className="mt-2 text-sm text-zinc-400">
+            Organize your Kreatly site configuration into clean sections. Website powers your
+            public blog, Members handles access, and Advanced unlocks power-user controls.
+          </p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <CategoryCard
+              icon={<Globe2 className="h-4 w-4 text-sky-400" />}
+              title="Website"
+              description="Navigation, branding, and Voice DNA."
+              href="/dashboard/settings/navigation"
+            />
+            <CategoryCard
+              icon={<Users className="h-4 w-4 text-emerald-400" />}
+              title="Members"
+              description="Team, roles, and member access."
+              href="/dashboard/settings/members"
+            />
+            <CategoryCard
+              icon={<SettingsIcon className="h-4 w-4 text-zinc-200" />}
+              title="Advanced"
+              description="Domains, analytics, and integrations."
+              href="/dashboard/settings/advanced"
+            />
+          </div>
+        </section>
+
+        {/* Voice DNA + Notion integration */}
+        <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-8">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            Website · Voice
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+            Voice DNA & Notion Sync
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-400">
+            Paste 3-5 of your best past LinkedIn posts or Tweets here. Our AI will analyze your
+            sentence structure, vocabulary, and rhythm to sound exactly like you.
+          </p>
 
         <div className="mt-8">
           <label htmlFor="voice-bio" className="text-sm font-medium text-zinc-200">
@@ -239,14 +282,42 @@ export default function SettingsPage() {
         </button>
 
         {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
-      </div>
+        </section>
 
-      {showToast ? (
-        <div className="fixed right-6 top-6 z-50 rounded-md border border-emerald-400/30 bg-zinc-900 px-3 py-2 text-xs font-semibold text-emerald-300 shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_6px_24px_rgba(16,185,129,0.25)]">
-          Voice DNA saved.
-        </div>
-      ) : null}
+        {showToast ? (
+          <div className="fixed right-6 top-6 z-50 rounded-md border border-emerald-400/30 bg-zinc-900 px-3 py-2 text-xs font-semibold text-emerald-300 shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_6px_24px_rgba(16,185,129,0.25)]">
+            Voice DNA saved.
+          </div>
+        ) : null}
+      </div>
     </main>
+  );
+}
+
+function CategoryCard({
+  icon,
+  title,
+  description,
+  href,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4 text-left transition-colors hover:border-zinc-600 hover:bg-zinc-900"
+    >
+      <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <p className="mt-1 text-xs text-zinc-400">{description}</p>
+      </div>
+    </a>
   );
 }
 
