@@ -126,7 +126,11 @@ export async function POST(request: Request) {
       // eslint-disable-next-line no-console
       console.log("[api/notion/sync] Missing NOTION_SECRET or NOTION_DATABASE_ID");
       return NextResponse.json(
-        { success: false, message: "Missing Notion Credentials" },
+        {
+          success: false,
+          error: "Missing Notion Credentials",
+          message: "Missing Notion Credentials",
+        },
         { status: 400 },
       );
     }
@@ -216,6 +220,7 @@ export async function POST(request: Request) {
           return NextResponse.json(
             {
               success: false,
+              error: `Firestore permission denied: ${message}`,
               message: `Firestore permission denied: ${message}`,
             },
             { status: 403 },
@@ -225,6 +230,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             success: false,
+            error: `Firestore error: ${message}`,
             message: `Firestore error: ${message}`,
           },
           { status: 500 },
@@ -251,7 +257,10 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: error?.message || "Failed to sync Notion data.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "An unknown error occurred",
       },
       { status: 500 },
     );

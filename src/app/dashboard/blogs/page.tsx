@@ -172,12 +172,29 @@ export default function BlogsPage() {
       });
       // eslint-disable-next-line no-console
       console.log("[BlogsPage] handleSync: response received", res.status);
-      const data = await res.json();
+      const rawText = await res.text();
+      // eslint-disable-next-line no-console
+      console.log("[BlogsPage] handleSync: raw response text", rawText);
+
+      let data: any;
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch (parseError) {
+        // eslint-disable-next-line no-console
+        console.error(
+          "[BlogsPage] handleSync: failed to parse JSON",
+          parseError,
+        );
+        throw new Error(`Server returned invalid JSON: ${rawText}`);
+      }
+
       // eslint-disable-next-line no-console
       console.log("[BlogsPage] handleSync: parsed response body", data);
 
       if (!res.ok || data?.success === false) {
-        throw new Error(data?.message || "Failed to sync Notion");
+        throw new Error(
+          data?.error || data?.message || "Sync failed",
+        );
       }
 
       const count = typeof data?.count === "number" ? data.count : 0;
