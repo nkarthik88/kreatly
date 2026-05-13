@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { Client } from "@notionhq/client";
-import { collection, doc, writeBatch } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { adminDb } from "@/lib/firebase-admin";
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_-]+/g, "");
@@ -126,21 +125,23 @@ function extractCover(page: any): string | null {
 
 async function syncOnce() {
   const secret = process.env.NOTION_SECRET;
+  const dbId = process.env.NOTION_DATABASE_ID;
 
-  if (!secret) {
+  if (!secret || !dbId) {
     return NextResponse.json(
-      { error: "Missing NOTION_SECRET environment variable" },
+      { error: "Missing Environment Variables" },
       { status: 400 },
     );
   }
 
-  const dbId = "35ce111fb3bd80809f36cd88d4fdf68d";
+  // IMPORTANT: NOTION_DATABASE_ID should be the raw 32-character ID only.
+  // Do not include the "v=..." query parameter from the Notion URL.
   // eslint-disable-next-line no-console
   console.log("Using DB ID:", dbId);
 
   const notion = new Client({ auth: secret });
 
-  const notionQuery = (async () => {
+  const notionQuery = async () => {
     const pages: any[] = [];
     let cursor: string | undefined;
 
@@ -155,7 +156,7 @@ async function syncOnce() {
     } while (cursor);
 
     return pages;
-  })();
+  };
 
   const notionTimeoutMs = 8000;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -170,7 +171,7 @@ async function syncOnce() {
 
   let pages: any[];
   try {
-    pages = await Promise.race([notionQuery, timeoutPromise]);
+    pages = await Promise.race([notionQuery(), timeoutPromise]);
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
     // eslint-disable-next-line no-console
@@ -203,10 +204,10 @@ async function syncOnce() {
   });
 
   try {
-    const batch = writeBatch(db);
-    const blogsCol = collection(db, "blogs");
+    const batch = adminDb.batch();
+    const blogsCol = adminDb.collection("blogs");
     for (const item of mapped) {
-      const ref = doc(blogsCol, item.id);
+      const ref = blogsCol.doc(item.id);
       batch.set(ref, item, { merge: true });
     }
     await batch.commit();
