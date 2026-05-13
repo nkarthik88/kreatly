@@ -10,13 +10,19 @@ function normalizeKey(key: string): string {
 
 function extractTitle(properties: any): string {
   const props = properties || {};
-  const nameTitle = props?.Name?.title?.[0]?.plain_text?.trim();
-  if (nameTitle) return nameTitle;
+  const keys = Object.keys(props);
 
-  const titleTitle = props?.Title?.title?.[0]?.plain_text?.trim();
-  if (titleTitle) return titleTitle;
+  const titleKey = keys.find((key) => props[key]?.type === "title");
+  if (!titleKey) return "Untitled";
 
-  return "Untitled";
+  const titleProp: any = props[titleKey];
+  const titleArray = Array.isArray(titleProp?.title) ? titleProp.title : [];
+  const realTitle = titleArray
+    .map((t: any) => t?.plain_text || "")
+    .join("")
+    .trim();
+
+  return realTitle || "Untitled";
 }
 
 function extractText(properties: any, keys: string[]): string {
