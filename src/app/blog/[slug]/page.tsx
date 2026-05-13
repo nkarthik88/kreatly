@@ -205,8 +205,6 @@ export default async function BlogReaderPage({ params }: PageParams) {
   );
 }
 
-import { Client } from "@notionhq/client";
-import { notFound } from "next/navigation";
 
 type BlogPageParams = {
   params: Promise<{ slug: string }>;
