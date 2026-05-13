@@ -126,19 +126,15 @@ function extractCover(page: any): string | null {
 
 async function syncOnce() {
   const secret = process.env.NOTION_SECRET;
-  const rawDbId = process.env.NOTION_DATABASE_ID;
 
-  if (!secret || !rawDbId) {
+  if (!secret) {
     return NextResponse.json(
-      { error: "Missing Environment Variables" },
+      { error: "Missing NOTION_SECRET environment variable" },
       { status: 400 },
     );
   }
 
-  const dbId = rawDbId.trim();
-  // IMPORTANT: NOTION_DATABASE_ID must be the bare 32-character ID from the
-  // database URL, without any trailing query params like "?v=...".
-  // Example: 35ce111fb3bd80809f36cd88d4fdf68d
+  const dbId = "35ce111fb3bd80809f36cd88d4fdf68d";
   // eslint-disable-next-line no-console
   console.log("Using DB ID:", dbId);
 

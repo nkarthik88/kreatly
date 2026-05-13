@@ -165,10 +165,21 @@ export default function BlogsPage() {
 
     try {
       console.log("[BlogsPage] handleSync: calling /api/notion/sync");
+
+      // Enforce a hard 15s client-side timeout so the button
+      // never spins forever if the server hangs.
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, 20000);
+
       const res = await fetch("/api/notion/sync", {
         method: "POST",
         cache: "no-store",
+        signal: controller.signal,
       });
+
+      window.clearTimeout(timeoutId);
       console.log("[BlogsPage] handleSync: response received", res.status);
 
       const contentType = res.headers.get("content-type");
@@ -215,7 +226,11 @@ export default function BlogsPage() {
       console.log("[BlogsPage] handleSync: finished reloading blogs");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to sync Notion";
+        err instanceof Error
+          ? err.name === "AbortError"
+            ? "Sync request exceeded 20 seconds and was cancelled. Please try again."
+            : err.message
+          : "Failed to sync Notion";
       setError(message);
       openToast(message);
       // eslint-disable-next-line no-console
