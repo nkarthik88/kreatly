@@ -11,6 +11,7 @@ type NotionPost = {
   title: string;
   slug: string;
   date: string | null;
+  tags: string[];
   blocks: any[];
 };
 
@@ -65,6 +66,14 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
       properties?.Date?.date?.start ||
       (typeof page.last_edited_time === "string" ? page.last_edited_time : null);
 
+    const tags: string[] =
+      Array.isArray(properties?.Tags?.multi_select) &&
+      properties.Tags.multi_select.length > 0
+        ? properties.Tags.multi_select
+            .map((t: any) => t?.name)
+            .filter((name: unknown): name is string => typeof name === "string")
+        : [];
+
     const blocks: any[] = [];
     let cursor: string | undefined;
     try {
@@ -87,6 +96,7 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
       title,
       slug,
       date,
+      tags,
       blocks,
     };
   } catch (error) {
@@ -166,17 +176,32 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
       return {
         title: "Post not found",
         description: "This article is not published or does not exist.",
+        openGraph: {
+          title: "Post not found",
+          type: "article",
+        },
       };
     }
 
+    const description = `Read ${post.title} on Kreatly.`;
+
     return {
       title: post.title,
-      description: `Read ${post.title} on Kreatly.`,
+      description,
+      keywords: post.tags && post.tags.length > 0 ? post.tags : undefined,
+      openGraph: {
+        title: post.title,
+        type: "article",
+      },
     };
   } catch {
     return {
       title: "Post not available",
       description: "This article is not available.",
+      openGraph: {
+        title: "Post not available",
+        type: "article",
+      },
     };
   }
 }
