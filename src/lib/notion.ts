@@ -43,11 +43,33 @@ export async function fetchStaticPageBySlug(slug: string): Promise<StaticPage | 
           } as any,
         },
         {
-          property: "slug",
-          rich_text: {
-            equals: slug,
-          },
-        } as any,
+          or: [
+            {
+              property: "slug",
+              rich_text: {
+                equals: slug,
+              },
+            } as any,
+            {
+              property: "slug",
+              rich_text: {
+                contains: slug,
+              },
+            } as any,
+            {
+              property: "Name",
+              title: {
+                contains: slug,
+              },
+            } as any,
+            {
+              property: "Title",
+              title: {
+                contains: slug,
+              },
+            } as any,
+          ],
+        },
       ],
     },
     page_size: 1,
@@ -78,4 +100,82 @@ export async function fetchStaticPageBySlug(slug: string): Promise<StaticPage | 
     slug: slugFromProp || slug,
   };
 }
+
+export type AuthorProfile = {
+  id: string;
+  name: string;
+  slug: string;
+  bio: string;
+  avatarUrl: string | null;
+};
+
+function extractPlainText(rich: any[] | undefined): string {
+  if (!Array.isArray(rich)) return "";
+  return rich.map((t: any) => t?.plain_text || "").join("").trim();
+}
+
+export async function fetchAuthorByPageId(pageId: string): Promise<AuthorProfile | null> {
+  if (!pageId) return null;
+
+  const page: any = await notion.pages.retrieve({ page_id: pageId });
+  const properties = page.properties || {};
+
+  const titleProp: any = properties?.Name || properties?.Title || {};
+  const name = extractPlainText(titleProp?.title) || "Unknown author";
+
+  const slugProp = properties?.slug || properties?.Slug;
+  const slug =
+    (slugProp?.type === "rich_text" && Array.isArray(slugProp.rich_text)
+      ? extractPlainText(slugProp.rich_text)
+      : "") || pageId.replace(/-/g, "").toLowerCase();
+
+  const bioProp = properties?.bio || properties?.Bio || properties?.Summary;
+  const bio =
+    (bioProp?.type === "rich_text" && Array.isArray(bioProp.rich_text)
+      ? extractPlainText(bioProp.rich_text)
+      : "") || "";
+
+  const avatarProp = properties?.Avatar || properties?.avatar || properties?.Photo;
+  let avatarUrl: string | null = null;
+  if (avatarProp?.type === "files" && Array.isArray(avatarProp.files) && avatarProp.files[0]) {
+    const file = avatarProp.files[0];
+    avatarUrl =
+      file.external?.url ??
+      file.file?.url ??
+      null;
+  }
+
+  return {
+    id: page.id,
+    name,
+    slug,
+    bio,
+    avatarUrl,
+  };
+}
+
+export async function fetchAuthorBySlug(slug: string): Promise<AuthorProfile | null> {
+  const databaseId = process.env.NOTION_AUTHORS_DATABASE_ID;
+  if (!databaseId) {
+    throw new Error("Missing NOTION_AUTHORS_DATABASE_ID environment variable.");
+  }
+  if (!slug.trim()) return null;
+
+  const resp: any = await notion.databases.query({
+    database_id: databaseId,
+    filter: {
+      property: "slug",
+      rich_text: {
+        equals: slug,
+      },
+    } as any,
+    page_size: 1,
+  } as any);
+
+  const page: any | undefined = resp.results?.[0];
+  if (!page) return null;
+
+  return fetchAuthorByPageId(page.id);
+}
+
 

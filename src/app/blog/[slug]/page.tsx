@@ -1,6 +1,7 @@
 import { Client } from "@notionhq/client";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { fetchAuthorByPageId, type AuthorProfile } from "@/lib/notion";
 
 type PageParams = {
   params: Promise<{ slug: string }>;
@@ -13,6 +14,7 @@ type NotionPost = {
   date: string | null;
   tags: string[];
   blocks: any[];
+  author?: AuthorProfile | null;
 };
 
 const NOTION_STATUS_PUBLISHED = "Published";
@@ -148,6 +150,20 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
       properties?.Date?.date?.start ||
       (typeof page.last_edited_time === "string" ? page.last_edited_time : null);
 
+    let author: AuthorProfile | null = null;
+    const authorRel = properties?.Author || properties?.author;
+    const authorRelation =
+      authorRel?.type === "relation" && Array.isArray(authorRel.relation)
+        ? authorRel.relation
+        : [];
+    if (authorRelation[0]?.id) {
+      try {
+        author = await fetchAuthorByPageId(authorRelation[0].id);
+      } catch {
+        author = null;
+      }
+    }
+
     const tags: string[] =
       Array.isArray(properties?.Tags?.multi_select) &&
       properties.Tags.multi_select.length > 0
@@ -180,6 +196,7 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
       date,
       tags,
       blocks,
+      author,
     };
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -364,6 +381,44 @@ export default async function BlogReaderPage({ params }: PageParams) {
             {post.blocks.map((block) => renderBlock(block))}
           </div>
         </div>
+
+        {post.author ? (
+          <section className="mt-10">
+            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+              <div className="flex items-center gap-4">
+                {post.author.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.author.avatarUrl}
+                    alt={post.author.name}
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold uppercase tracking-wide text-white">
+                    {post.author.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/blog/author/${encodeURIComponent(post.author.slug)}`}
+                    className="text-sm font-semibold text-zinc-900 hover:text-sky-600"
+                  >
+                    {post.author.name}
+                  </Link>
+                  {post.author.bio ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                      {post.author.bio}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {related.length > 0 ? (
           <section className="mt-10 border-t border-zinc-200 pt-8">
