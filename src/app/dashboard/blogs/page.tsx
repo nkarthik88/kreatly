@@ -394,24 +394,31 @@ export default function BlogsPage() {
             {stories.map((story) => (
               <article
                 key={story.id}
-                className="grid grid-cols-[minmax(0,1fr)_220px_220px_220px] items-center gap-4 border-b border-zinc-200 bg-white py-5"
+                className="flex items-center gap-4 border-b border-zinc-200 bg-white py-5"
               >
-                <div className="min-w-0">
+                {/* Title + URL */}
+                <div className="flex-1 min-w-0">
                   <Link
                     href={`/dashboard/writer/${encodeURIComponent(story.id)}`}
-                    className="truncate text-base font-semibold text-zinc-900 underline-offset-2 hover:underline"
+                    className="block truncate text-base font-semibold text-zinc-900 underline-offset-2 hover:underline"
                   >
                     {story.title?.trim() || (isSyncing ? "Syncing..." : "Untitled Post")}
                   </Link>
                   {story.isPublished ? (
-                    <p className="mt-1 truncate text-xs text-zinc-500">{getPublicUrl(story.slug)}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-500">
+                      {getPublicUrl(story.slug)}
+                    </p>
                   ) : null}
                 </div>
-                <p className="justify-self-end text-sm text-zinc-500">
+
+                {/* Date */}
+                <p className="w-32 shrink-0 text-right text-sm text-zinc-500">
                   {formatLastEdited(story.lastEdited)}
                 </p>
-                <div className="justify-self-end">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600">
+
+                {/* Status badge + toggle */}
+                <div className="w-32 shrink-0">
+                  <label className="inline-flex w-full items-center justify-end gap-2 text-xs text-zinc-600">
                     <span
                       className={
                         story.isPublished
@@ -425,13 +432,15 @@ export default function BlogsPage() {
                       type="checkbox"
                       checked={story.isPublished}
                       onChange={(event) => void handlePublishToggle(story, event.target.checked)}
-                      className="h-4 w-4 accent-black"
+                      className="h-4 w-4 shrink-0 accent-black"
                     />
                   </label>
                 </div>
-                <div className="justify-self-end">
+
+                {/* Actions */}
+                <div className="w-40 shrink-0 text-right">
                   {story.isPublished ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2">
                       <Link
                         href={`/b/${story.slug}`}
                         className="rounded-[4px] border border-[#E5E5E5] px-2 py-1 text-xs text-black"
