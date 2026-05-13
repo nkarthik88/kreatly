@@ -39,7 +39,9 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
           rich_text: { equals: slug },
         },
         {
-          property: "Status",
+          // Notion property key is case-sensitive. Use the exact property
+          // name from the database schema, e.g. "status" (all lowercase).
+          property: "status",
           // Works for both select and status types in Notion
           status: { equals: NOTION_STATUS_PUBLISHED } as any,
         },
@@ -90,49 +92,49 @@ function renderRichText(rich: any[] | undefined): string {
 
 function renderBlock(block: any) {
   const type = block.type;
-  const value = block[type];
+  const value = (block as any)[type] || {};
 
   switch (type) {
     case "heading_1":
       return (
         <h1 key={block.id} className="mt-8">
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </h1>
       );
     case "heading_2":
       return (
         <h2 key={block.id} className="mt-8">
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </h2>
       );
     case "heading_3":
       return (
         <h3 key={block.id} className="mt-6">
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </h3>
       );
     case "paragraph":
       return (
         <p key={block.id}>
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </p>
       );
     case "bulleted_list_item":
       return (
         <li key={block.id} className="list-disc">
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </li>
       );
     case "numbered_list_item":
       return (
         <li key={block.id} className="list-decimal">
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </li>
       );
     case "quote":
       return (
         <blockquote key={block.id}>
-          {renderRichText(value?.rich_text)}
+          {renderRichText(value.rich_text)}
         </blockquote>
       );
     default:
