@@ -71,6 +71,9 @@ export default async function StaticPage({ params }: PageParams) {
   const { slug } = await params;
 
   try {
+    // eslint-disable-next-line no-console
+    console.log("🔍 [StaticPage] Incoming slug param:", slug);
+
     const pageMeta = await fetchStaticPageBySlug(slug);
     if (!pageMeta) {
       notFound();
@@ -87,6 +90,9 @@ export default async function StaticPage({ params }: PageParams) {
       blocks.push(...(chunk.results ?? []));
       cursor = chunk.has_more ? chunk.next_cursor ?? undefined : undefined;
     } while (cursor);
+
+    // eslint-disable-next-line no-console
+    console.log("✅ [StaticPage] Rendering static page:", pageMeta.slug);
 
     return (
       <main className="min-h-screen bg-zinc-50 px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">

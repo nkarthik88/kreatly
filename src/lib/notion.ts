@@ -27,22 +27,27 @@ export async function fetchStaticPageBySlug(slug: string): Promise<StaticPage | 
 
   if (!slug.trim()) return null;
 
+  // eslint-disable-next-line no-console
+  console.log("🔍 Fetching Static Page for slug:", slug);
+  // eslint-disable-next-line no-console
+  console.log("📂 Using Database ID:", databaseId);
+
   const response: any = await notion.databases.query({
     database_id: databaseId,
     filter: {
       and: [
-        {
-          property: "slug",
-          rich_text: {
-            equals: slug,
-          },
-        } as any,
         {
           property: "status",
           select: {
             equals: NOTION_STATUS_PUBLISHED,
           } as any,
         },
+        {
+          property: "slug",
+          rich_text: {
+            equals: slug,
+          },
+        } as any,
       ],
     },
     page_size: 1,
@@ -63,6 +68,9 @@ export async function fetchStaticPageBySlug(slug: string): Promise<StaticPage | 
     slugProp?.type === "rich_text" && Array.isArray(slugProp.rich_text)
       ? slugProp.rich_text.map((t: any) => t?.plain_text || "").join("").trim()
       : slug;
+
+  // eslint-disable-next-line no-console
+  console.log("✅ Page found! Rendering static page with slug:", slugFromProp || slug);
 
   return {
     id: page.id,
