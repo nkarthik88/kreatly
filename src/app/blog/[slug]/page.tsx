@@ -28,61 +28,72 @@ async function getNotionClient() {
 }
 
 async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
-  const { notion, databaseId } = await getNotionClient();
+  try {
+    const { notion, databaseId } = await getNotionClient();
 
-  const response = await notion.databases.query({
-    database_id: databaseId,
-    filter: {
-      and: [
-        {
-          property: "Slug",
-          rich_text: { equals: slug },
-        },
-        {
-          // Notion property key is case-sensitive. Use the exact property
-          // name from the database schema, e.g. "status" (all lowercase).
-          property: "status",
-          // Works for both select and status types in Notion
-          status: { equals: NOTION_STATUS_PUBLISHED } as any,
-        },
-      ],
-    },
-    page_size: 1,
-  } as any);
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      filter: {
+        and: [
+          {
+            property: "Slug",
+            rich_text: { equals: slug },
+          },
+          {
+            // Notion property key is case-sensitive. Use the exact property
+            // name from the database schema, e.g. "status" (all lowercase).
+            property: "status",
+            // Works for both select and status types in Notion
+            status: { equals: NOTION_STATUS_PUBLISHED } as any,
+          },
+        ],
+      },
+      page_size: 1,
+    } as any);
 
-  const page: any | undefined = response.results?.[0];
-  if (!page) return null;
+    const page: any | undefined = response.results?.[0];
+    if (!page) return null;
 
-  const properties = page.properties || {};
-  const titleProp: any = properties?.Name || properties?.Title || {};
-  const title =
-    (Array.isArray(titleProp?.title)
-      ? titleProp.title.map((t: any) => t?.plain_text || "").join("").trim()
-      : "") || "Untitled";
+    const properties = page.properties || {};
+    const titleProp: any = properties?.Name || properties?.Title || {};
+    const title =
+      (Array.isArray(titleProp?.title)
+        ? titleProp.title.map((t: any) => t?.plain_text || "").join("").trim()
+        : "") || "Untitled";
 
-  const date =
-    properties?.Date?.date?.start ||
-    (typeof page.last_edited_time === "string" ? page.last_edited_time : null);
+    const date =
+      properties?.Date?.date?.start ||
+      (typeof page.last_edited_time === "string" ? page.last_edited_time : null);
 
-  const blocks: any[] = [];
-  let cursor: string | undefined;
-  do {
-    const chunk: any = await notion.blocks.children.list({
-      block_id: page.id,
-      page_size: 100,
-      start_cursor: cursor,
-    });
-    blocks.push(...(chunk.results ?? []));
-    cursor = chunk.has_more ? chunk.next_cursor ?? undefined : undefined;
-  } while (cursor);
+    const blocks: any[] = [];
+    let cursor: string | undefined;
+    try {
+      do {
+        const chunk: any = await notion.blocks.children.list({
+          block_id: page.id,
+          page_size: 100,
+          start_cursor: cursor,
+        });
+        blocks.push(...(chunk.results ?? []));
+        cursor = chunk.has_more ? chunk.next_cursor ?? undefined : undefined;
+      } while (cursor);
+    } catch (blockError) {
+      // eslint-disable-next-line no-console
+      console.error("[blog/[slug]] Failed to fetch Notion blocks:", blockError);
+    }
 
-  return {
-    id: page.id,
-    title,
-    slug,
-    date,
-    blocks,
-  };
+    return {
+      id: page.id,
+      title,
+      slug,
+      date,
+      blocks,
+    };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("[blog/[slug]] Failed to fetch post by slug:", error);
+    return null;
+  }
 }
 
 function renderRichText(rich: any[] | undefined): string {
@@ -92,49 +103,52 @@ function renderRichText(rich: any[] | undefined): string {
 
 function renderBlock(block: any) {
   const type = block.type;
-  const value = (block as any)[type] || {};
+  const value = (block as any)[type];
+
+  if (!value) return null;
+  const rich = Array.isArray((value as any).rich_text) ? (value as any).rich_text : undefined;
 
   switch (type) {
     case "heading_1":
       return (
         <h1 key={block.id} className="mt-8">
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </h1>
       );
     case "heading_2":
       return (
         <h2 key={block.id} className="mt-8">
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </h2>
       );
     case "heading_3":
       return (
         <h3 key={block.id} className="mt-6">
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </h3>
       );
     case "paragraph":
       return (
         <p key={block.id}>
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </p>
       );
     case "bulleted_list_item":
       return (
         <li key={block.id} className="list-disc">
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </li>
       );
     case "numbered_list_item":
       return (
         <li key={block.id} className="list-decimal">
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </li>
       );
     case "quote":
       return (
         <blockquote key={block.id}>
-          {renderRichText(value.rich_text)}
+          {renderRichText(rich)}
         </blockquote>
       );
     default:
@@ -171,7 +185,13 @@ export default async function BlogReaderPage({ params }: PageParams) {
   const post = await fetchPostBySlug(slug);
 
   if (!post) {
-    notFound();
+    return (
+      <main className="min-h-screen bg-zinc-50 px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
+        <article className="mx-auto max-w-3xl rounded-2xl border border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-600 shadow-sm">
+          Error loading post content. This article may be unpublished or temporarily unavailable.
+        </article>
+      </main>
+    );
   }
 
   const formattedDate =
