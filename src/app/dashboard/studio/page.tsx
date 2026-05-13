@@ -236,15 +236,13 @@ export default function StudioPage() {
     setUsedVoiceProfile(false);
     setError(null);
     try {
-      const response = await fetch("/api/refine", {
+      const response = await fetch("/api/ai/generate", {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          uid: user?.uid,
-          pageId: selectedId,
-          content: storyContent,
-          channel,
+          promptType: channel === "x" ? "twitter" : "linkedin",
+          blogContent: storyContent,
         }),
       });
       const data = await response.json();
@@ -258,7 +256,7 @@ export default function StudioPage() {
           ? data.generatedContent
           : "No generation output returned.",
       );
-      setUsedVoiceProfile(Boolean(data?.usedVoiceProfile));
+      setUsedVoiceProfile(false);
       if (successPulseTimeoutRef.current) {
         window.clearTimeout(successPulseTimeoutRef.current);
       }
