@@ -399,7 +399,7 @@ export default function BlogsPage() {
                 <div className="min-w-0">
                   <Link
                     href={`/dashboard/writer/${encodeURIComponent(story.id)}`}
-                    className="truncate text-base font-semibold tracking-tight text-black underline-offset-2 hover:underline"
+                    className="truncate text-base font-semibold text-zinc-900 underline-offset-2 hover:underline"
                   >
                     {story.title?.trim() || (isSyncing ? "Syncing..." : "Untitled Post")}
                   </Link>
@@ -412,7 +412,15 @@ export default function BlogsPage() {
                 </p>
                 <div className="justify-self-end">
                   <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600">
-                    <span>{story.isPublished ? "Published" : "Draft"}</span>
+                    <span
+                      className={
+                        story.isPublished
+                          ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                          : "rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600"
+                      }
+                    >
+                      {story.isPublished ? "Published" : "Draft"}
+                    </span>
                     <input
                       type="checkbox"
                       checked={story.isPublished}
@@ -495,8 +503,12 @@ function normalizeBaseUrl(value: string): string {
 }
 
 function formatLastEdited(value: string | null): string {
-  if (!value) return "Last edited —";
+  if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Last edited —";
-  return `Last edited ${date.toLocaleString()}`;
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

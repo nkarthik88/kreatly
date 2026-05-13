@@ -10,37 +10,11 @@ function normalizeKey(key: string): string {
 
 function extractTitle(properties: any): string {
   const props = properties || {};
-  const directTitle =
-    props?.Name?.title ||
-    props?.Title?.title ||
-    props?.name?.title ||
-    props?.title?.title;
+  const nameTitle = props?.Name?.title?.[0]?.plain_text?.trim();
+  if (nameTitle) return nameTitle;
 
-  if (Array.isArray(directTitle)) {
-    const text = directTitle.map((t: any) => t?.plain_text || "").join("").trim();
-    if (text) return text;
-  }
-
-  const entries = Object.entries(props);
-  const preferredKeys = ["title", "name"];
-
-  for (const [key, value] of entries) {
-    const prop: any = value;
-    if (prop?.type === "title" && preferredKeys.includes(normalizeKey(key))) {
-      const text =
-        prop.title?.map((t: any) => t?.plain_text || "").join("").trim() || "";
-      if (text) return text;
-    }
-  }
-
-  for (const [, value] of entries) {
-    const prop: any = value;
-    if (prop?.type === "title") {
-      const text =
-        prop.title?.map((t: any) => t?.plain_text || "").join("").trim() || "";
-      if (text) return text;
-    }
-  }
+  const titleTitle = props?.Title?.title?.[0]?.plain_text?.trim();
+  if (titleTitle) return titleTitle;
 
   return "Untitled";
 }
@@ -77,62 +51,19 @@ function toSlug(value: string, fallbackId: string): string {
     .slice(0, 120) || fallbackId.replace(/-/g, "").toLowerCase();
 }
 
-function extractDate(properties: any, keys: string[], fallback: string | null): string | null {
-  const preferred = keys.map((key) => normalizeKey(key));
-  for (const [key, value] of Object.entries(properties || {})) {
-    const prop: any = value;
-    if (prop?.type !== "date" || !prop.date?.start) continue;
-    if (preferred.includes(normalizeKey(key))) {
-      return prop.date.start;
-    }
-  }
-  for (const value of Object.values(properties || {})) {
-    const prop: any = value;
-    if (prop?.type === "date" && prop.date?.start) {
-      return prop.date.start;
-    }
-  }
+function extractDate(properties: any, fallback: string | null): string | null {
+  const directDate = properties?.Date?.date?.start;
+  if (directDate) return directDate;
   return fallback;
 }
 
-function extractStatus(
-  properties: any,
-  keys: string[],
-): { status: string; isPublished: boolean } {
-  const preferred = keys.map((key) => normalizeKey(key));
-  const entries = Object.entries(properties || {});
-
-  for (const [key, value] of entries) {
-    if (!preferred.includes(normalizeKey(key))) continue;
-    const prop: any = value;
-    if (prop?.type === "status" && prop.status?.name) {
-      const status = String(prop.status.name);
-      return { status, isPublished: status.toLowerCase().includes("publish") };
-    }
-    if (prop?.type === "select" && prop.select?.name) {
-      const status = String(prop.select.name);
-      return { status, isPublished: status.toLowerCase().includes("publish") };
-    }
-    if (prop?.type === "checkbox") {
-      const checked = Boolean(prop.checkbox);
-      return { status: checked ? "Published" : "Draft", isPublished: checked };
-    }
-  }
-
-  for (const [, value] of entries) {
-    const prop: any = value;
-    if (prop?.type === "status" && prop.status?.name) {
-      const status = String(prop.status.name);
-      return { status, isPublished: status.toLowerCase().includes("publish") };
-    }
-    if (prop?.type === "select" && prop.select?.name) {
-      const status = String(prop.select.name);
-      return { status, isPublished: status.toLowerCase().includes("publish") };
-    }
-    if (prop?.type === "checkbox") {
-      const checked = Boolean(prop.checkbox);
-      return { status: checked ? "Published" : "Draft", isPublished: checked };
-    }
+function extractStatus(properties: any): { status: string; isPublished: boolean } {
+  const statusName = properties?.Status?.select?.name;
+  if (statusName) {
+    return {
+      status: statusName,
+      isPublished: statusName.toLowerCase().includes("publish"),
+    };
   }
 
   return { status: "Draft", isPublished: false };
@@ -212,23 +143,10 @@ async function syncOnce() {
   const mapped = pages.map((page: any) => {
     const properties = page?.properties || {};
     const title = extractTitle(properties);
-    const slugProp = extractText(properties, [
-      "slug",
-      "url slug",
-      "permalink",
-      "path",
-    ]);
+    const slugProp = extractText(properties, ["slug", "url slug", "permalink", "path"]);
     const slug = toSlug(slugProp || title, page.id);
-    const date = extractDate(
-      properties,
-      ["date", "published", "published at", "publish date"],
-      page?.last_edited_time ?? null,
-    );
-    const { status, isPublished } = extractStatus(properties, [
-      "status",
-      "state",
-      "published",
-    ]);
+    const date = extractDate(properties, page?.last_edited_time ?? null);
+    const { status, isPublished } = extractStatus(properties);
     const coverImage = extractCover(page);
 
     return {
