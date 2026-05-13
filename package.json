@@ -20,6 +20,7 @@
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",

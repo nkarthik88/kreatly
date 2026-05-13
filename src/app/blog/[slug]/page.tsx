@@ -239,7 +239,7 @@ export default async function BlogReaderPage({ params }: PageParams) {
         ) : null}
 
         <div className="mt-8 rounded-2xl border border-zinc-200 bg-white px-6 py-8 shadow-sm sm:px-10">
-          <div className="prose prose-lg prose-zinc max-w-none prose-headings:font-semibold prose-p:text-zinc-700 prose-a:text-sky-600 prose-a:no-underline hover:prose-a:underline prose-li:my-1">
+          <div className="prose prose-lg max-w-3xl mx-auto prose-zinc dark:prose-invert prose-headings:font-semibold prose-p:text-zinc-700 prose-a:text-sky-600 prose-a:no-underline hover:prose-a:underline prose-li:my-1">
             {post.blocks.map((block) => renderBlock(block))}
           </div>
         </div>
