@@ -135,7 +135,8 @@ export default async function BlogTagPage({ params }: PageParams) {
           Kreatly Blog
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
-          Posts tagged: <span className="text-sky-600">{decodedTag}</span>
+          Showing posts tagged with{" "}
+          <span className="text-sky-600">#{decodedTag}</span>
         </h1>
         <p className="mt-2 text-sm text-zinc-500">
           Curated articles filtered by this topic.

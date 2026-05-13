@@ -349,7 +349,7 @@ export default async function BlogReaderPage({ params }: PageParams) {
               {post.tags.map((tag) => (
                 <Link
                   key={tag}
-                  href={`/blog/tag/${encodeURIComponent(tag)}`}
+                  href={`/blog/tag/${encodeURIComponent(tag.toLowerCase())}`}
                   className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
                 >
                   {tag}
