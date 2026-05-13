@@ -312,15 +312,13 @@ export default function BlogsPage() {
           THE BLOGS
         </h1>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleOpenPublicSite()}
-            disabled={publishedStories.length === 0}
-            className="inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-zinc-50"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open Public Site
-          </button>
+          </Link>
           <button
             type="button"
             onClick={() => void handleSync()}
@@ -399,8 +397,8 @@ export default function BlogsPage() {
                 {/* Title + URL */}
                 <div className="flex-1 min-w-0">
                   <Link
-                    href={`/dashboard/writer/${encodeURIComponent(story.id)}`}
-                    className="block truncate text-base font-semibold text-zinc-900 underline-offset-2 hover:underline"
+                    href={`/blog/${encodeURIComponent(story.slug)}`}
+                    className="block truncate text-base font-semibold text-zinc-900 underline-offset-2 hover:underline hover:text-sky-600"
                   >
                     {story.title?.trim() || (isSyncing ? "Syncing..." : "Untitled Post")}
                   </Link>
