@@ -227,6 +227,8 @@ async function syncOnce() {
     );
   }
 
+  // eslint-disable-next-line no-console
+  console.log('SYNC SUCCESSFUL: Blogs saved to Firestore');
   return NextResponse.json(
     { success: true, count: mapped.length },
     { status: 200 },
