@@ -28,22 +28,21 @@ async function getNotionClient() {
 }
 
 async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
-  try {
-    const { notion, databaseId } = await getNotionClient();
+  const { notion, databaseId } = await getNotionClient();
 
+  try {
     const response = await notion.databases.query({
       database_id: databaseId,
       filter: {
         and: [
           {
+            // Slug column is capitalized in your Notion schema.
             property: "Slug",
             rich_text: { equals: slug },
           },
           {
-            // Notion property key is case-sensitive. Use the exact property
-            // name from the database schema, e.g. "status" (all lowercase).
+            // Native Status property (status type, not select).
             property: "status",
-            // Works for both select and status types in Notion
             status: { equals: NOTION_STATUS_PUBLISHED } as any,
           },
         ],
@@ -92,7 +91,8 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("[blog/[slug]] Failed to fetch post by slug:", error);
-    return null;
+    // Re-throw so the page component can surface the error to the user for debugging.
+    throw error;
   }
 }
 
@@ -182,14 +182,34 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 
 export default async function BlogReaderPage({ params }: PageParams) {
   const { slug } = await params;
-  const post = await fetchPostBySlug(slug);
+
+  let post: NotionPost | null = null;
+  let debugError: unknown = null;
+
+  try {
+    post = await fetchPostBySlug(slug);
+    if (!post) {
+      debugError = "Post simply returned null";
+    }
+  } catch (error) {
+    debugError = error;
+  }
 
   if (!post) {
     return (
       <main className="min-h-screen bg-zinc-50 px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
-        <article className="mx-auto max-w-3xl rounded-2xl border border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-600 shadow-sm">
-          Error loading post content. This article may be unpublished or temporarily unavailable.
-        </article>
+        <div className="mx-auto max-w-3xl">
+          <div className="p-10 text-red-500 font-mono border border-red-500 rounded bg-red-50">
+            <h3 className="mb-3 text-sm font-semibold">DEBUG LOG:</h3>
+            <pre className="whitespace-pre-wrap text-xs">
+              {JSON.stringify(
+                debugError || "Post simply returned null",
+                null,
+                2,
+              )}
+            </pre>
+          </div>
+        </div>
       </main>
     );
   }
