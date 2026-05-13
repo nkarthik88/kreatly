@@ -43,33 +43,11 @@ export async function fetchStaticPageBySlug(slug: string): Promise<StaticPage | 
           } as any,
         },
         {
-          or: [
-            {
-              property: "slug",
-              rich_text: {
-                equals: slug,
-              },
-            } as any,
-            {
-              property: "slug",
-              rich_text: {
-                contains: slug,
-              },
-            } as any,
-            {
-              property: "Name",
-              title: {
-                contains: slug,
-              },
-            } as any,
-            {
-              property: "Title",
-              title: {
-                contains: slug,
-              },
-            } as any,
-          ],
-        },
+          property: "slug",
+          rich_text: {
+            equals: slug,
+          },
+        } as any,
       ],
     },
     page_size: 1,
