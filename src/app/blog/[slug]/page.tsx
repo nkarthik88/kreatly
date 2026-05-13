@@ -41,9 +41,10 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
             rich_text: { equals: slug },
           },
           {
-            // Native Status property (status type, not select).
+            // Your Notion column `status` is a Select, not a native Status.
+            // Use the select filter so the types match.
             property: "status",
-            status: { equals: NOTION_STATUS_PUBLISHED } as any,
+            select: { equals: NOTION_STATUS_PUBLISHED } as any,
           },
         ],
       },
