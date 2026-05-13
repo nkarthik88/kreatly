@@ -151,7 +151,7 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
       (typeof page.last_edited_time === "string" ? page.last_edited_time : null);
 
     let author: AuthorProfile | null = null;
-    const authorRel = properties?.Author || properties?.author;
+    const authorRel = properties?.["Authors."] || properties?.Author || properties?.author;
     const authorRelation =
       authorRel?.type === "relation" && Array.isArray(authorRel.relation)
         ? authorRel.relation

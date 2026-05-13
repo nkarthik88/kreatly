@@ -35,7 +35,7 @@ async function fetchPostsForAuthor(authorId: string): Promise<AuthorPost[]> {
               select: { equals: NOTION_STATUS_PUBLISHED } as any,
             },
             {
-              property: "Author",
+              property: "Authors.",
               relation: {
                 contains: authorId,
               } as any,
