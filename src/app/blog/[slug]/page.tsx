@@ -28,6 +28,88 @@ async function getNotionClient() {
   return { notion: new Client({ auth: secret }), databaseId };
 }
 
+async function fetchRelatedPosts(
+  currentId: string,
+  currentSlug: string,
+  tags: string[],
+): Promise<NotionPost[]> {
+  if (!tags.length) return [];
+
+  const { notion, databaseId } = await getNotionClient();
+
+  try {
+    const response: any = await notion.databases.query({
+      database_id: databaseId,
+      filter: {
+        and: [
+          {
+            property: "status",
+            select: { equals: NOTION_STATUS_PUBLISHED } as any,
+          },
+          {
+            property: "Tags",
+            multi_select: {
+              contains: tags[0],
+            } as any,
+          },
+        ],
+      },
+      sorts: [
+        {
+          property: "Date",
+          direction: "descending",
+        } as any,
+      ],
+      page_size: 5,
+    } as any);
+
+    const mapped: NotionPost[] =
+      response.results?.map((page: any) => {
+        if (page.id === currentId) return null;
+
+        const properties = page.properties || {};
+        const titleProp: any = properties?.Name || properties?.Title || {};
+        const title =
+          (Array.isArray(titleProp?.title)
+            ? titleProp.title.map((t: any) => t?.plain_text || "").join("").trim()
+            : "") || "Untitled";
+
+        const slugProp = properties?.Slug;
+        const slugFromProp =
+          slugProp?.type === "rich_text" && Array.isArray(slugProp.rich_text)
+            ? slugProp.rich_text.map((t: any) => t?.plain_text || "").join("").trim()
+            : "";
+
+        const slug = slugFromProp || currentSlug;
+
+        const date =
+          properties?.Date?.date?.start ||
+          (typeof page.last_edited_time === "string" ? page.last_edited_time : null);
+
+        const relatedTags: string[] =
+          Array.isArray(properties?.Tags?.multi_select) &&
+          properties.Tags.multi_select.length > 0
+            ? properties.Tags.multi_select
+                .map((t: any) => t?.name)
+                .filter((name: unknown): name is string => typeof name === "string")
+            : [];
+
+        return {
+          id: page.id,
+          title,
+          slug,
+          date,
+          tags: relatedTags,
+          blocks: [],
+        };
+      }) ?? [];
+
+    return mapped.filter((p): p is NotionPost => Boolean(p)).slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
   const { notion, databaseId } = await getNotionClient();
 
@@ -211,11 +293,14 @@ export default async function BlogReaderPage({ params }: PageParams) {
 
   let post: NotionPost | null = null;
   let debugError: unknown = null;
+  let related: NotionPost[] = [];
 
   try {
     post = await fetchPostBySlug(slug);
     if (!post) {
       debugError = "Post simply returned null";
+    } else {
+      related = await fetchRelatedPosts(post.id, post.slug, post.tags);
     }
   } catch (error) {
     debugError = error;
@@ -279,6 +364,36 @@ export default async function BlogReaderPage({ params }: PageParams) {
             {post.blocks.map((block) => renderBlock(block))}
           </div>
         </div>
+
+        {related.length > 0 ? (
+          <section className="mt-10 border-t border-zinc-200 pt-8">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              Related posts
+            </h2>
+            <div className="mt-4 space-y-3">
+              {related.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/blog/${encodeURIComponent(item.slug)}`}
+                  className="group flex items-baseline justify-between gap-4 rounded-lg px-2 py-1.5 transition hover:bg-zinc-50"
+                >
+                  <span className="truncate text-sm font-medium text-zinc-900 group-hover:text-sky-600">
+                    {item.title}
+                  </span>
+                  {item.date ? (
+                    <span className="shrink-0 text-[11px] text-zinc-500">
+                      {new Date(item.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </article>
     </main>
   );
