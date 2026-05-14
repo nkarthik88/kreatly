@@ -1,6 +1,55 @@
 "use client";
 
+import { useState } from "react";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
+
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const [notionApiKey, setNotionApiKey] = useState("");
+  const [blogDbId, setBlogDbId] = useState("");
+  const [authorsDbId, setAuthorsDbId] = useState("");
+  const [tagsDbId, setTagsDbId] = useState("");
+  const [sitePagesDbId, setSitePagesDbId] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!user?.uid) {
+      setMessage("You must be logged in to save your workspace.");
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage(null);
+
+    try {
+      const ref = doc(db, "users", user.uid);
+      await setDoc(
+        ref,
+        {
+          notionApiKey: notionApiKey || null,
+          blogDbId: blogDbId || null,
+          authorsDbId: authorsDbId || null,
+          tagsDbId: tagsDbId || null,
+          sitePagesDbId: sitePagesDbId || null,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+      setMessage("Workspace connected. Your blog is ready to launch.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to save your Notion configuration.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-12 text-zinc-50 sm:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
@@ -32,12 +81,14 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="mt-5">
-              <button
-                type="button"
-                className="inline-flex w-full items-center justify-center rounded-[999px] border border-zinc-50 bg-zinc-50 px-4 py-2.5 text-sm font-medium tracking-tight text-zinc-950 shadow-sm transition hover:bg-zinc-100 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+              <a
+                href="https://chameleon.notion.site/Kreatly-Master-Template-YOUR-LINK-HERE"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full items-center justify-center rounded-[999px] border border-zinc-50 bg-zinc-50 px-4 py-2.5 text-center text-sm font-medium tracking-tight text-zinc-950 shadow-sm transition hover:bg-zinc-100 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
               >
                 Duplicate to Notion
-              </button>
+              </a>
             </div>
           </div>
 
@@ -53,7 +104,13 @@ export default function DashboardPage() {
               below. You can change them anytime later in settings.
             </p>
 
-            <form className="mt-5 space-y-4">
+            <form
+              className="mt-5 space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSave();
+              }}
+            >
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
                   Notion API Secret
@@ -66,6 +123,8 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="password"
+                  value={notionApiKey}
+                  onChange={(e) => setNotionApiKey(e.target.value)}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-50 outline-none transition placeholder:text-zinc-600 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                   placeholder="ntn_..."
                 />
@@ -77,6 +136,8 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="text"
+                  value={blogDbId}
+                  onChange={(e) => setBlogDbId(e.target.value)}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-50 outline-none transition placeholder:text-zinc-600 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                   placeholder="Your Posts / Blog database ID"
                 />
@@ -88,6 +149,8 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="text"
+                  value={authorsDbId}
+                  onChange={(e) => setAuthorsDbId(e.target.value)}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-50 outline-none transition placeholder:text-zinc-600 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                   placeholder="Your Authors database ID"
                 />
@@ -99,6 +162,8 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="text"
+                  value={tagsDbId}
+                  onChange={(e) => setTagsDbId(e.target.value)}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-50 outline-none transition placeholder:text-zinc-600 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                   placeholder="Your Tags / Topics database ID"
                 />
@@ -110,10 +175,16 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="text"
+                  value={sitePagesDbId}
+                  onChange={(e) => setSitePagesDbId(e.target.value)}
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-50 outline-none transition placeholder:text-zinc-600 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                   placeholder="Your SitePages / Static pages database ID"
                 />
               </div>
+
+              {message ? (
+                <p className="pt-1 text-xs text-zinc-400">{message}</p>
+              ) : null}
             </form>
           </div>
         </section>
@@ -121,9 +192,11 @@ export default function DashboardPage() {
         <div className="mt-4 flex justify-end">
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded-[999px] border border-zinc-50 bg-zinc-50 px-6 py-3 text-sm font-semibold tracking-tight text-zinc-950 shadow-sm transition hover:bg-zinc-100 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+            onClick={() => void handleSave()}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center rounded-[999px] border border-zinc-50 bg-zinc-50 px-6 py-3 text-sm font-semibold tracking-tight text-zinc-950 shadow-sm transition hover:bg-zinc-100 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save &amp; Launch Blog
+            {isSaving ? "Saving…" : "Save & Launch Blog"}
           </button>
         </div>
       </div>
