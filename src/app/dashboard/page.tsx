@@ -25,19 +25,26 @@ export default function DashboardPage() {
     setMessage(null);
 
     try {
-      const ref = doc(db, "users", user.uid);
-      await setDoc(
-        ref,
-        {
-          notionApiKey: notionApiKey || null,
-          blogDbId: blogDbId || null,
-          authorsDbId: authorsDbId || null,
-          tagsDbId: tagsDbId || null,
-          sitePagesDbId: sitePagesDbId || null,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true },
-      );
+      const payload = {
+        notionApiKey: notionApiKey || null,
+        blogDbId: blogDbId || null,
+        authorsDbId: authorsDbId || null,
+        tagsDbId: tagsDbId || null,
+        sitePagesDbId: sitePagesDbId || null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // eslint-disable-next-line no-console
+      console.log("💾 Saving Notion config for uid:", user.uid, payload);
+
+      const userRef = doc(db, "users", user.uid);
+      const siteRef = doc(db, "sites", user.uid);
+
+      await Promise.all([
+        setDoc(userRef, payload, { merge: true }),
+        setDoc(siteRef, payload, { merge: true }),
+      ]);
+
       setMessage("Workspace connected. Your blog is ready to launch.");
     } catch (error) {
       setMessage(

@@ -30,6 +30,31 @@ async function getNotionClient() {
   return { notion: new Client({ auth: secret }), databaseId };
 }
 
+function toSlug(value: string, fallbackId: string): string {
+  const base = value || fallbackId;
+  return (
+    base
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 120) || fallbackId.replace(/-/g, "").toLowerCase()
+  );
+}
+
+function extractTitle(properties: any): string {
+  const props = properties || {};
+  const keys = Object.keys(props);
+  const titleKey = keys.find((key) => props[key]?.type === "title");
+  if (!titleKey) return "Untitled";
+
+  const titleProp: any = props[titleKey];
+  const arr = Array.isArray(titleProp?.title) ? titleProp.title : [];
+  const text = arr.map((t: any) => t?.plain_text || "").join("").trim();
+  return text || "Untitled";
+}
+
 async function fetchRelatedPosts(
   currentId: string,
   currentSlug: string,
@@ -116,35 +141,51 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
   const { notion, databaseId } = await getNotionClient();
 
   try {
-    const response = await notion.databases.query({
-      database_id: databaseId,
-      filter: {
-        and: [
-          {
-            // Slug column is capitalized in your Notion schema.
-            property: "Slug",
-            rich_text: { equals: slug },
-          },
-          {
-            // Your Notion column `status` is a Select, not a native Status.
-            // Use the select filter so the types match.
-            property: "status",
-            select: { equals: NOTION_STATUS_PUBLISHED } as any,
-          },
-        ],
-      },
-      page_size: 1,
-    } as any);
+    // First, fetch all published pages, then match by the same slug logic
+    // used throughout the rest of the app. This avoids subtle mismatches
+    // between the raw Notion "Slug" field and the normalized URL slug.
+    const all: any[] = [];
+    let cursor: string | undefined;
 
-    const page: any | undefined = response.results?.[0];
-    if (!page) return null;
+    do {
+      const resp: any = await notion.databases.query({
+        database_id: databaseId,
+        filter: {
+          and: [
+            {
+              property: "status",
+              select: { equals: NOTION_STATUS_PUBLISHED } as any,
+            },
+          ],
+        },
+        start_cursor: cursor,
+        page_size: 50,
+      } as any);
+
+      all.push(...(resp.results ?? []));
+      cursor = resp.has_more ? resp.next_cursor ?? undefined : undefined;
+    } while (cursor);
+
+    const page: any | undefined = all.find((p: any) => {
+      const properties = p.properties || {};
+      const title = extractTitle(properties);
+      const slugProp = properties?.Slug;
+      const rawSlug =
+        slugProp?.type === "rich_text" && Array.isArray(slugProp.rich_text)
+          ? slugProp.rich_text.map((t: any) => t?.plain_text || "").join("").trim()
+          : "";
+      const computed = toSlug(rawSlug || title, p.id);
+      return computed === slug;
+    });
+
+    if (!page) {
+      // eslint-disable-next-line no-console
+      console.warn("[blog/[slug]] No page matched slug after normalization:", slug);
+      return null;
+    }
 
     const properties = page.properties || {};
-    const titleProp: any = properties?.Name || properties?.Title || {};
-    const title =
-      (Array.isArray(titleProp?.title)
-        ? titleProp.title.map((t: any) => t?.plain_text || "").join("").trim()
-        : "") || "Untitled";
+    const title = extractTitle(properties);
 
     const date =
       properties?.Date?.date?.start ||
