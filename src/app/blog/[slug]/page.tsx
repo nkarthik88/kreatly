@@ -214,17 +214,17 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
         : [];
 
     const blocks: any[] = [];
-    let cursor: string | undefined;
+    let blocksCursor: string | undefined;
     try {
       do {
         const chunk: any = await notion.blocks.children.list({
           block_id: page.id,
           page_size: 100,
-          start_cursor: cursor,
+          start_cursor: blocksCursor,
         });
         blocks.push(...(chunk.results ?? []));
-        cursor = chunk.has_more ? chunk.next_cursor ?? undefined : undefined;
-      } while (cursor);
+        blocksCursor = chunk.has_more ? chunk.next_cursor ?? undefined : undefined;
+      } while (blocksCursor);
     } catch (blockError) {
       // eslint-disable-next-line no-console
       console.error("[blog/[slug]] Failed to fetch Notion blocks:", blockError);
