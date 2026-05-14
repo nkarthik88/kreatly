@@ -139,21 +139,61 @@ export async function fetchAuthorBySlug(slug: string): Promise<AuthorProfile | n
   }
   if (!slug.trim()) return null;
 
+  // eslint-disable-next-line no-console
+  console.log("🔍 Fetching Author by slug:", slug);
+  // eslint-disable-next-line no-console
+  console.log("📂 Using Authors DB ID:", databaseId);
+
   const resp: any = await notion.databases.query({
     database_id: databaseId,
     filter: {
-      property: "slug",
-      rich_text: {
-        equals: slug,
-      },
-    } as any,
+      or: [
+        {
+          property: "slug",
+          rich_text: {
+            equals: slug,
+          },
+        } as any,
+        {
+          property: "slug",
+          rich_text: {
+            contains: slug,
+          },
+        } as any,
+        {
+          property: "Slug",
+          rich_text: {
+            equals: slug,
+          },
+        } as any,
+        {
+          property: "Slug",
+          rich_text: {
+            contains: slug,
+          },
+        } as any,
+        {
+          property: "Name",
+          title: {
+            contains: slug,
+          },
+        } as any,
+      ],
+    },
     page_size: 1,
   } as any);
 
   const page: any | undefined = resp.results?.[0];
-  if (!page) return null;
+  if (!page) {
+    // eslint-disable-next-line no-console
+    console.log("⚠️ No author found for slug:", slug);
+    return null;
+  }
 
-  return fetchAuthorByPageId(page.id);
+  const author = await fetchAuthorByPageId(page.id);
+  // eslint-disable-next-line no-console
+  console.log("✅ Author found:", author?.slug);
+  return author;
 }
 
 
