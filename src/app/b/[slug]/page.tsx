@@ -1,55 +1,28 @@
 import React from "react";
 import { Client } from "@notionhq/client";
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { doc, getDoc, getFirestore, collection, getDocs, limit, query } from "firebase/firestore";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { adminDb } from "@/lib/firebase-admin";
 
-// ─── Firebase (server-side) ────────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "AIzaSyA1ZQYCXHk2NQ9SbF1KfCBw6XvQJCBacb0",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "kreatly-1365e.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "kreatly-1365e",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "kreatly-1365e.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "1083279778087",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "1:1083279778087:web:9c202d5d0762240ef3c902",
-};
-const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const firestore = getFirestore(firebaseApp);
-
-// ─── Types ─────────────────────────────────────────────────────────────────
 type PageParams = { params: Promise<{ slug: string }> };
 
-type PostMeta = {
-  slug: string;
-  title: string;
-  seoTitle: string;
-  seoDescription: string;
-  ogImage: string | null;
-  notionPageId: string | null;
-};
+// ─── Firestore helpers (Admin SDK — no "client offline" errors) ────────────
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+async function loadPostMeta(slug: string) {
+  console.log(`[b/slug] Server: Checking Firestore for slug "${slug}"...`);
 
-/** Load the published post record + ownerUid credentials from Firestore. */
-async function loadPostMeta(slug: string): Promise<PostMeta | null> {
-  // eslint-disable-next-line no-console
-  console.log("[b/slug] loadPostMeta — slug:", slug);
+  const snap = await adminDb.collection("publicPosts").doc(slug).get();
 
-  const snap = await getDoc(doc(firestore, "publicPosts", slug));
-  if (!snap.exists()) {
-    // eslint-disable-next-line no-console
-    console.log("[b/slug] publicPosts doc not found for slug:", slug);
+  if (!snap.exists) {
+    console.log(`[b/slug] Server: Post not found in publicPosts for slug "${slug}"`);
     return null;
   }
 
-  const d = snap.data();
-  // eslint-disable-next-line no-console
-  console.log("[b/slug] publicPosts doc:", JSON.stringify({ isPublished: d.isPublished, storyId: d.storyId, title: d.title }));
+  const d = snap.data()!;
+  console.log(`[b/slug] Server: Post found — isPublished: ${d.isPublished}, storyId: ${d.storyId ?? "none"}, title: ${d.title}`);
 
   if (!d.isPublished) {
-    // eslint-disable-next-line no-console
-    console.log("[b/slug] post is not published");
+    console.log(`[b/slug] Server: Post exists but isPublished=false — treating as not found`);
     return null;
   }
 
@@ -63,70 +36,55 @@ async function loadPostMeta(slug: string): Promise<PostMeta | null> {
   };
 }
 
-/** Resolve Notion credentials: try per-user Firestore first, fall back to env vars. */
 async function resolveNotionCreds(): Promise<{ secret: string; databaseId: string } | null> {
-  // Try first doc in `sites` collection (single-tenant — the site owner's config).
+  // Try the first doc in the `sites` collection (user-saved creds from the dashboard).
   try {
-    const sitesSnap = await getDocs(query(collection(firestore, "sites"), limit(1)));
+    const sitesSnap = await adminDb.collection("sites").limit(1).get();
     if (!sitesSnap.empty) {
-      const siteData = sitesSnap.docs[0].data();
-      const secret = siteData.notionApiKey as string | undefined;
-      const databaseId = siteData.blogDbId as string | undefined;
-      // eslint-disable-next-line no-console
-      console.log("[b/slug] Firestore site creds — notionApiKey present:", Boolean(secret), "| blogDbId:", databaseId ?? "MISSING");
+      const d = sitesSnap.docs[0].data();
+      const secret = d.notionApiKey as string | undefined;
+      const databaseId = d.blogDbId as string | undefined;
+      console.log(`[b/slug] Server: Firestore site creds — notionApiKey present: ${Boolean(secret)}, blogDbId: ${databaseId ?? "MISSING"}`);
       if (secret && databaseId) return { secret, databaseId };
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn("[b/slug] Could not read sites collection:", err);
+    console.warn("[b/slug] Server: Could not read sites collection:", err);
   }
 
   // Fall back to environment variables.
   const secret = process.env.NOTION_SECRET;
   const databaseId = process.env.NOTION_DATABASE_ID;
-  // eslint-disable-next-line no-console
-  console.log("[b/slug] Env var creds — NOTION_SECRET present:", Boolean(secret), "| NOTION_DATABASE_ID:", databaseId ?? "MISSING");
+  console.log(`[b/slug] Server: Env var creds — NOTION_SECRET present: ${Boolean(secret)}, NOTION_DATABASE_ID: ${databaseId ?? "MISSING"}`);
 
   if (!secret || !databaseId) {
-    // eslint-disable-next-line no-console
-    console.error("[b/slug] ❌ No Notion credentials available. Set NOTION_SECRET + NOTION_DATABASE_ID in Vercel env vars, or save them via the dashboard.");
+    console.error("[b/slug] Server: ❌ No Notion credentials found. Add NOTION_SECRET + NOTION_DATABASE_ID to Vercel env vars, or save them via the dashboard.");
     return null;
   }
 
   return { secret, databaseId };
 }
 
-/** Fetch all Notion blocks for a page ID, paginating automatically. */
+// ─── Notion block fetching ─────────────────────────────────────────────────
+
 async function fetchBlocks(notion: Client, pageId: string): Promise<any[]> {
   const blocks: any[] = [];
   let cursor: string | undefined;
 
-  // eslint-disable-next-line no-console
-  console.log("[b/slug] fetchBlocks — pageId:", pageId);
+  do {
+    const chunk: any = await notion.blocks.children.list({
+      block_id: pageId,
+      page_size: 100,
+      start_cursor: cursor,
+    });
+    blocks.push(...(chunk.results ?? []));
+    cursor = chunk.has_more ? (chunk.next_cursor ?? undefined) : undefined;
+  } while (cursor);
 
-  try {
-    do {
-      const chunk: any = await notion.blocks.children.list({
-        block_id: pageId,
-        page_size: 100,
-        start_cursor: cursor,
-      });
-      blocks.push(...(chunk.results ?? []));
-      cursor = chunk.has_more ? (chunk.next_cursor ?? undefined) : undefined;
-    } while (cursor);
-
-    // eslint-disable-next-line no-console
-    console.log("[b/slug] blocks fetched:", blocks.length, "| types:", [...new Set(blocks.map((b: any) => b.type))]);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("[b/slug] ❌ blocks.children.list failed:", err);
-    throw err;
-  }
-
+  console.log(`[b/slug] Server: Notion blocks fetched — count: ${blocks.length}, types: [${[...new Set(blocks.map((b: any) => b.type))].join(", ")}]`);
   return blocks;
 }
 
-// ─── Block Renderer ────────────────────────────────────────────────────────
+// ─── Block renderer ────────────────────────────────────────────────────────
 
 function renderInline(rich: any[] | undefined): React.ReactNode {
   if (!Array.isArray(rich) || rich.length === 0) return null;
@@ -135,7 +93,6 @@ function renderInline(rich: any[] | undefined): React.ReactNode {
     if (!text) return null;
     const ann = t?.annotations ?? {};
     const href: string | null = t?.href ?? null;
-
     let node: React.ReactNode = text;
     if (ann.code) node = <code key={i} className="rounded bg-zinc-100 px-1 font-mono text-sm text-zinc-800">{text}</code>;
     if (ann.bold) node = <strong key={i}>{node}</strong>;
@@ -151,7 +108,6 @@ function renderBlock(block: any): React.ReactNode {
   const type: string = block?.type;
   const value = block?.[type];
   if (!value) return null;
-
   const rich = Array.isArray(value?.rich_text) ? value.rich_text : undefined;
 
   switch (type) {
@@ -179,10 +135,9 @@ function renderBlock(block: any): React.ReactNode {
       const codeText = Array.isArray(value?.rich_text)
         ? value.rich_text.map((t: any) => t?.plain_text ?? "").join("")
         : "";
-      const lang: string = value?.language ?? "";
       return (
         <pre key={block.id} className="my-5 overflow-x-auto rounded-xl bg-zinc-900 px-6 py-5 text-sm text-zinc-100 leading-6">
-          <code data-language={lang}>{codeText}</code>
+          <code data-language={value?.language ?? ""}>{codeText}</code>
         </pre>
       );
     }
@@ -235,18 +190,22 @@ function renderBlock(block: any): React.ReactNode {
 
 export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
   const { slug } = await params;
-  const post = await loadPostMeta(slug);
-  if (!post) return { title: "Post Not Found" };
-  return {
-    title: post.seoTitle,
-    description: post.seoDescription,
-    openGraph: {
+  try {
+    const post = await loadPostMeta(slug);
+    if (!post) return { title: "Post Not Found" };
+    return {
       title: post.seoTitle,
       description: post.seoDescription,
-      type: "article",
-      images: post.ogImage ? [{ url: post.ogImage }] : [],
-    },
-  };
+      openGraph: {
+        title: post.seoTitle,
+        description: post.seoDescription,
+        type: "article",
+        images: post.ogImage ? [{ url: post.ogImage }] : [],
+      },
+    };
+  } catch {
+    return { title: "Post Not Found" };
+  }
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
@@ -254,69 +213,88 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function PublicBlogPostPage({ params }: PageParams) {
   const { slug } = await params;
 
-  const postMeta = await loadPostMeta(slug);
-  if (!postMeta) notFound();
+  // 1. Load post metadata from Firestore (Admin SDK).
+  let postMeta: Awaited<ReturnType<typeof loadPostMeta>>;
+  try {
+    postMeta = await loadPostMeta(slug);
+  } catch (err) {
+    console.error("[b/slug] Server: Firestore read failed:", err);
+    return (
+      <main className="min-h-screen bg-zinc-50 px-6 py-16">
+        <div className="mx-auto max-w-3xl rounded-xl border border-red-200 bg-red-50 p-6 font-mono text-sm text-red-700">
+          <strong>Firestore error:</strong> {err instanceof Error ? err.message : String(err)}
+          <br /><br />Ensure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are set in Vercel.
+        </div>
+      </main>
+    );
+  }
 
-  // Determine Notion page ID — prefer storyId stored in Firestore, fall back to resolving via DB query.
-  let notionPageId: string | null = postMeta.notionPageId;
-  // eslint-disable-next-line no-console
-  console.log("[b/slug] notionPageId from Firestore:", notionPageId ?? "NOT STORED");
+  if (!postMeta) {
+    notFound();
+  }
 
+  // 2. Resolve Notion credentials.
+  const creds = await resolveNotionCreds();
   let blocks: any[] = [];
   let blocksError: string | null = null;
 
-  const creds = await resolveNotionCreds();
-
   if (!creds) {
-    blocksError = "No Notion credentials configured. Add NOTION_SECRET and NOTION_DATABASE_ID to your Vercel environment variables, or save them via the dashboard.";
+    blocksError = "No Notion credentials found. Set NOTION_SECRET + NOTION_DATABASE_ID in Vercel env vars, or save them via the dashboard.";
   } else {
     const notion = new Client({ auth: creds.secret });
+    let pageId = postMeta.notionPageId;
 
-    // If we don't have the page ID yet, query the database to find it by slug.
-    if (!notionPageId) {
-      // eslint-disable-next-line no-console
-      console.log("[b/slug] No storyId in Firestore — querying Notion DB:", creds.databaseId);
+    // 3. If storyId wasn't stored, find the page by querying the database.
+    if (!pageId) {
+      console.log(`[b/slug] Server: No storyId stored — querying Notion DB ${creds.databaseId} for slug "${slug}"...`);
       try {
         const dbResp: any = await notion.databases.query({
           database_id: creds.databaseId,
           page_size: 100,
         } as any);
+
         const match = (dbResp.results ?? []).find((p: any) => {
           const props = p.properties ?? {};
           const titleKey = Object.keys(props).find((k) => props[k]?.type === "title");
           const title = titleKey
             ? (props[titleKey].title ?? []).map((t: any) => t?.plain_text ?? "").join("").trim()
             : "";
-          const rawSlug = (props?.Slug?.rich_text ?? []).map((t: any) => t?.plain_text ?? "").join("").trim();
-          const computed = (rawSlug || title).toLowerCase().trim()
-            .replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").slice(0, 120);
+          const rawSlug = (props?.Slug?.rich_text ?? props?.slug?.rich_text ?? [])
+            .map((t: any) => t?.plain_text ?? "").join("").trim();
+          const computed = (rawSlug || title)
+            .toLowerCase().trim()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-")
+            .slice(0, 120);
           return computed === slug;
         });
-        notionPageId = match?.id ?? null;
-        // eslint-disable-next-line no-console
-        console.log("[b/slug] Notion DB query matched pageId:", notionPageId ?? "NO MATCH");
+
+        pageId = match?.id ?? null;
+        console.log(`[b/slug] Server: Notion DB query result — pageId: ${pageId ?? "NO MATCH"}`);
       } catch (err) {
         blocksError = `Notion database query failed: ${err instanceof Error ? err.message : String(err)}`;
-        // eslint-disable-next-line no-console
-        console.error("[b/slug] ❌ DB query error:", err);
+        console.error("[b/slug] Server: ❌ Notion DB query error:", err);
       }
     }
 
-    if (notionPageId && !blocksError) {
+    // 4. Fetch blocks.
+    if (pageId && !blocksError) {
       try {
-        blocks = await fetchBlocks(notion, notionPageId);
+        blocks = await fetchBlocks(notion, pageId);
       } catch (err) {
-        blocksError = `Failed to fetch page blocks: ${err instanceof Error ? err.message : String(err)}`;
+        blocksError = `Failed to fetch page content: ${err instanceof Error ? err.message : String(err)}`;
+        console.error("[b/slug] Server: ❌ blocks.children.list failed:", err);
       }
     }
   }
 
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
     <main className="min-h-screen bg-zinc-50 px-6 py-16 text-zinc-900">
       <article className="mx-auto max-w-3xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-          Kreatly
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Kreatly</p>
         <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl text-zinc-900">
           {postMeta.title}
         </h1>
