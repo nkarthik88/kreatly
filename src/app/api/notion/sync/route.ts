@@ -111,6 +111,13 @@ function extractCover(page: any): string | null {
   return null;
 }
 
+// ── Normalize a Notion ID to the canonical 8-4-4-4-12 UUID format ────────────
+function normalizeNotionId(id: string): string {
+  const raw = id.replace(/-/g, "").toLowerCase();
+  if (raw.length !== 32) return id;
+  return `${raw.slice(0,8)}-${raw.slice(8,12)}-${raw.slice(12,16)}-${raw.slice(16,20)}-${raw.slice(20)}`;
+}
+
 // ── Resolve creds from Firestore first, env vars as fallback ─────────────────
 async function resolveSyncCreds(): Promise<{ secret: string; dbId: string } | null> {
   try {
@@ -122,8 +129,9 @@ async function resolveSyncCreds(): Promise<{ secret: string; dbId: string } | nu
       const dbId: string | undefined =
         d.blogDbId ?? d.notionDatabaseId ?? d.notion_database_id ?? undefined;
       if (secret && dbId) {
-        console.log(`[api/notion/sync] Creds from Firestore sites/${siteDoc.id} — dbId: ${dbId}`);
-        return { secret, dbId };
+        const normalizedDbId = normalizeNotionId(dbId);
+        console.log(`[api/notion/sync] Creds from Firestore sites/${siteDoc.id} — raw dbId: ${dbId}, normalized: ${normalizedDbId}`);
+        return { secret, dbId: normalizedDbId };
       }
     }
   } catch (err) {
@@ -131,9 +139,10 @@ async function resolveSyncCreds(): Promise<{ secret: string; dbId: string } | nu
   }
 
   const secret = process.env.NOTION_SECRET ?? process.env.NOTION_TOKEN ?? process.env.NOTION_API_KEY;
-  const dbId = process.env.NOTION_DATABASE_ID ?? process.env.NOTION_DB_ID;
-  if (secret && dbId) {
-    console.log(`[api/notion/sync] Creds from env vars — dbId: ${dbId}`);
+  const rawDbId = process.env.NOTION_DATABASE_ID ?? process.env.NOTION_DB_ID;
+  if (secret && rawDbId) {
+    const dbId = normalizeNotionId(rawDbId);
+    console.log(`[api/notion/sync] Creds from env vars — raw dbId: ${rawDbId}, normalized: ${dbId}`);
     return { secret, dbId };
   }
 
@@ -189,12 +198,34 @@ async function syncOnce() {
     setTimeout(() => reject(new Error('Notion is taking too long. Check your Database ID and ensure the Kreatly integration is invited to the page.')), 12000),
   );
 
+  // Verify the integration can see the database before doing anything destructive.
+  try {
+    await notion.databases.retrieve({ database_id: dbId });
+    console.log(`[api/notion/sync] ✅ Database verified — ID: ${dbId}`);
+  } catch (verifyErr: any) {
+    const code: string = verifyErr?.code ?? "unknown";
+    const message: string = verifyErr?.message ?? String(verifyErr);
+    if (code === "object_not_found" || code === "unauthorized" || message.includes("not_found")) {
+      console.error(`NOTION PERMISSION ERROR: The integration is not shared with database ${dbId}`);
+      console.error(`[api/notion/sync] code=${code} message=${message}`);
+      return NextResponse.json({
+        error: `Could not find database with ID: ${dbId}. Open your Notion workspace → open the blogs database → click ••• (top-right) → Connections → Add Kreatly integration. Then paste the correct ID in the dashboard settings and click Save.`,
+      }, { status: 403 });
+    }
+    // Non-permission error — surface it but don't block.
+    console.warn(`[api/notion/sync] Database retrieve warning (code=${code}):`, message);
+  }
+
   let pages: any[];
   try {
     pages = await Promise.race([notionQuery(), timeoutPromise]);
   } catch (error: any) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[api/notion/sync] Notion query error:", message);
+    const code: string = error?.code ?? "unknown";
+    const message: string = error instanceof Error ? error.message : String(error);
+    if (code === "object_not_found" || code === "unauthorized") {
+      console.error(`NOTION PERMISSION ERROR: The integration is not shared with database ${dbId}`);
+    }
+    console.error("[api/notion/sync] Notion query error — code:", code, "message:", message);
     return NextResponse.json({ error: message }, { status: 504 });
   }
 
