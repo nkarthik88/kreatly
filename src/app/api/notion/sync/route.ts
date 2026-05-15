@@ -255,19 +255,30 @@ async function syncOnce() {
     };
   });
 
-  // ── Step 2: Snapshot existing publicPosts so we can rebuild them ──────────
-  let publishedSlugs: Map<string, any> = new Map();
+  // ── Step 2: Snapshot existing publicPosts — index by BOTH slug and storyId
+  //           so we can preserve SEO metadata even when slugs change.
+  const prevBySlug = new Map<string, any>();
+  const prevByStoryId = new Map<string, any>();
+  let siteId: string | null = null;
   try {
     const pubSnap = await adminDb.collection("publicPosts").get();
     for (const d of pubSnap.docs) {
       const data = d.data();
-      if (data.isPublished) {
-        publishedSlugs.set(data.slug ?? d.id, data);
-      }
+      if (data.slug) prevBySlug.set(data.slug, data);
+      if (data.storyId) prevByStoryId.set(data.storyId, data);
+      if (!siteId && data.siteId) siteId = data.siteId;
     }
-    console.log(`[api/notion/sync] Snapshotted ${publishedSlugs.size} published publicPosts before reset`);
+    console.log(`[api/notion/sync] Snapshotted ${pubSnap.size} publicPosts (${prevBySlug.size} with slug, siteId=${siteId ?? "none"})`);
   } catch (err) {
     console.warn("[api/notion/sync] Could not snapshot publicPosts:", err);
+  }
+
+  // If no siteId from publicPosts, read it from the sites collection.
+  if (!siteId) {
+    try {
+      const sitesSnap = await adminDb.collection("sites").limit(1).get();
+      if (!sitesSnap.empty) siteId = sitesSnap.docs[0].id;
+    } catch { /* non-fatal */ }
   }
 
   // ── Step 3: Nuclear reset — wipe publicPosts and blogs ───────────────────
@@ -298,33 +309,49 @@ async function syncOnce() {
     return NextResponse.json({ error: "Failed to write blogs after sync" }, { status: 500 });
   }
 
-  // ── Step 5: Rebuild publicPosts for previously-published slugs ────────────
+  // ── Step 5: Publish every page Notion marks as Published ─────────────────
+  // Notion is the source of truth for publish state after sync.
+  // Preserve any existing SEO metadata (matched by slug OR old storyId).
   const rebuildErrors: string[] = [];
+  let publishedCount = 0;
+
   for (const item of mapped) {
-    const prevData = publishedSlugs.get(item.slug);
-    if (!prevData) continue; // was not published before — skip
+    if (!item.isPublished) {
+      console.log(`[api/notion/sync] Skipping draft: "${item.title}" slug="${item.slug}"`);
+      continue;
+    }
+
+    // Best-effort: reuse old SEO metadata if the slug or storyId matches.
+    const prevData = prevBySlug.get(item.slug) ?? prevByStoryId.get(item.id) ?? {};
+
+    const doc = {
+      storyId: item.id,
+      slug: item.slug,
+      siteId: siteId ?? prevData.siteId ?? null,
+      title: item.title,
+      seoTitle: prevData.seoTitle || item.title,
+      seoDescription: prevData.seoDescription || "",
+      ogImage: prevData.ogImage || item.coverImage || null,
+      isPublished: true,
+      updatedAt: new Date().toISOString(),
+    };
 
     try {
-      await adminDb.collection("publicPosts").doc(item.slug).set({
-        ...prevData,          // preserve title, seoTitle, seoDescription, ogImage, siteId, etc.
-        storyId: item.id,    // ← fresh correct Notion page ID
-        slug: item.slug,
-        isPublished: true,
-        updatedAt: new Date().toISOString(),
-      });
-      console.log(`[api/notion/sync] Rebuilt publicPost for slug="${item.slug}" storyId="${item.id}"`);
+      await adminDb.collection("publicPosts").doc(item.slug).set(doc);
+      console.log(`[api/notion/sync] Published slug="${item.slug}" storyId="${item.id}"`);
+      publishedCount++;
     } catch (err) {
-      const msg = `Failed to rebuild publicPost for "${item.slug}": ${err instanceof Error ? err.message : String(err)}`;
+      const msg = `Failed to publish "${item.slug}": ${err instanceof Error ? err.message : String(err)}`;
       console.error("[api/notion/sync]", msg);
       rebuildErrors.push(msg);
     }
   }
 
-  console.log(`[api/notion/sync] SYNC COMPLETE — ${mapped.length} blogs, ${publishedSlugs.size} publicPosts rebuilt`);
+  console.log(`[api/notion/sync] SYNC COMPLETE — ${mapped.length} blogs synced, ${publishedCount} published to publicPosts`);
   return NextResponse.json({
     success: true,
     count: mapped.length,
-    publishedRebuilt: publishedSlugs.size,
+    published: publishedCount,
     rebuildErrors: rebuildErrors.length ? rebuildErrors : undefined,
   });
 }
