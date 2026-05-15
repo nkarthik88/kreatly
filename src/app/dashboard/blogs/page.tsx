@@ -14,6 +14,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 
 type Story = {
   id: string;
@@ -31,6 +32,7 @@ type Story = {
 const DEFAULT_PUBLIC_APP_URL = "https://kreatly.vercel.app";
 
 export default function BlogsPage() {
+  const { user } = useAuth();
   const [stories, setStories] = useState<Story[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -260,6 +262,7 @@ export default function BlogsPage() {
         {
           storyId: story.id,
           slug: story.slug,
+          siteId: user?.uid ?? null,
           title: story.title || "Untitled Post",
           content: story.content || story.title || "",
           seoTitle: story.seoTitle || story.title || "Untitled Post",

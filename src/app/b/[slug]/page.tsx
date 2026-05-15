@@ -35,6 +35,7 @@ async function loadPostMeta(slug: string) {
 
   return {
     slug,
+    siteId: typeof d.siteId === "string" && d.siteId ? d.siteId : null,
     title: String(d.title || "Untitled"),
     seoTitle: String(d.seoTitle || d.title || "Untitled"),
     seoDescription: String(d.seoDescription || ""),
@@ -43,38 +44,55 @@ async function loadPostMeta(slug: string) {
   };
 }
 
-async function resolveNotionCreds(): Promise<{ secret: string; databaseId: string } | null> {
-  // ── 1. Try every doc in `sites` — log all field keys so we can spot name mismatches.
+async function resolveNotionCreds(siteId: string | null): Promise<{ secret: string; databaseId: string } | null> {
+  // ── 1. Direct lookup: use siteId stamped on the publicPost to find exactly the right user's creds.
+  if (siteId) {
+    try {
+      const siteSnap = await adminDb.collection("sites").doc(siteId).get();
+      console.log(`[b/slug] resolveNotionCreds: sites/${siteId} exists=${siteSnap.exists}`);
+      if (siteSnap.exists) {
+        const d = siteSnap.data() ?? {};
+        console.log(`[b/slug] sites/${siteId} keys: [${Object.keys(d).join(", ")}]`);
+        const secret: string | undefined =
+          d.notionApiKey ?? d.notionToken ?? d.notion_token ?? d.notionSecret ?? undefined;
+        const databaseId: string | undefined =
+          d.blogDbId ?? d.notionDatabaseId ?? d.notion_database_id ?? undefined;
+        console.log(
+          `[b/slug] sites/${siteId} — token: ${secret ? maskToken(secret) : "NOT FOUND"}, dbId: ${databaseId ?? "NOT FOUND"}`,
+        );
+        if (secret && databaseId) {
+          console.log(`[b/slug] ✅ Creds resolved from sites/${siteId}`);
+          return { secret, databaseId };
+        }
+      }
+    } catch (err) {
+      console.warn(`[b/slug] resolveNotionCreds: failed to read sites/${siteId}:`, err);
+    }
+  }
+
+  // ── 2. Fallback scan — catches legacy docs where siteId wasn't stamped yet.
   try {
     const sitesSnap = await adminDb.collection("sites").limit(5).get();
-    console.log(`[b/slug] resolveNotionCreds: sites collection docs found: ${sitesSnap.size}`);
-
+    console.log(`[b/slug] resolveNotionCreds: fallback scan — docs found: ${sitesSnap.size}`);
     for (const siteDoc of sitesSnap.docs) {
       const d = siteDoc.data();
-      const allKeys = Object.keys(d);
-      console.log(`[b/slug] sites/${siteDoc.id} keys: [${allKeys.join(", ")}]`);
-
-      // Accept any reasonable field name variant for the token.
       const secret: string | undefined =
-        d.notionApiKey ?? d.notionToken ?? d.notion_token ?? d.notionSecret ?? d.notion_api_key ?? undefined;
-      // Accept any reasonable field name variant for the database ID.
+        d.notionApiKey ?? d.notionToken ?? d.notion_token ?? d.notionSecret ?? undefined;
       const databaseId: string | undefined =
-        d.blogDbId ?? d.notionDatabaseId ?? d.notion_database_id ?? d.databaseId ?? d.dbId ?? undefined;
-
+        d.blogDbId ?? d.notionDatabaseId ?? d.notion_database_id ?? undefined;
       console.log(
-        `[b/slug] sites/${siteDoc.id} — token field: ${secret ? `"${maskToken(secret)}"` : "NOT FOUND"}, dbId field: ${databaseId ?? "NOT FOUND"}`,
+        `[b/slug] sites/${siteDoc.id} — token: ${secret ? maskToken(secret) : "NOT FOUND"}, dbId: ${databaseId ?? "NOT FOUND"}`,
       );
-
       if (secret && databaseId) {
-        console.log(`[b/slug] ✅ Using Firestore creds from sites/${siteDoc.id}`);
+        console.log(`[b/slug] ✅ Creds resolved from sites/${siteDoc.id} (fallback scan)`);
         return { secret, databaseId };
       }
     }
   } catch (err) {
-    console.warn("[b/slug] resolveNotionCreds: Could not read sites collection:", err);
+    console.warn("[b/slug] resolveNotionCreds: fallback scan failed:", err);
   }
 
-  // ── 2. Fall back to env vars — check both common naming conventions.
+  // ── 3. Env var fallback.
   const secret =
     process.env.NOTION_SECRET ??
     process.env.NOTION_TOKEN ??
@@ -84,20 +102,16 @@ async function resolveNotionCreds(): Promise<{ secret: string; databaseId: strin
     process.env.NOTION_DATABASE_ID ??
     process.env.NOTION_DB_ID ??
     undefined;
-
   console.log(
-    `[b/slug] resolveNotionCreds: env vars — token: ${secret ? `"${maskToken(secret)}"` : "MISSING"}, databaseId: ${databaseId ?? "MISSING"}`,
+    `[b/slug] resolveNotionCreds: env vars — token: ${secret ? maskToken(secret) : "MISSING"}, databaseId: ${databaseId ?? "MISSING"}`,
   );
+  if (secret && databaseId) return { secret, databaseId };
 
-  if (!secret || !databaseId) {
-    console.error(
-      "[b/slug] ❌ No Notion credentials found anywhere. " +
-      "Set NOTION_SECRET (or NOTION_TOKEN) + NOTION_DATABASE_ID in Vercel env vars, or save them via the dashboard settings page.",
-    );
-    return null;
-  }
-
-  return { secret, databaseId };
+  console.error(
+    "[b/slug] ❌ No Notion credentials found in Firestore or env vars. " +
+    "Save your Notion API key via the dashboard settings page.",
+  );
+  return null;
 }
 
 function maskToken(token: string): string {
@@ -117,36 +131,37 @@ function normalizeNotionId(id: string): string {
 async function fetchBlocksFlat(
   notion: Client,
   blockId: string,
-  tokenHint: string,
+  token: string,
   depth = 0,
 ): Promise<any[]> {
-  const normalizedId = normalizeNotionId(blockId);
+  const storyId = normalizeNotionId(blockId);
 
-  if (depth === 0) {
-    console.log(
-      `[b/slug] fetchBlocks: token="${tokenHint}", block_id="${normalizedId}" (raw="${blockId}")`,
-    );
-  }
+  // X-Ray log — exact format requested.
+  console.log("Fetching Notion - Token:", token ? "Exists" : "MISSING", "BlockID:", storyId);
 
   const topLevel: any[] = [];
   let cursor: string | undefined;
 
   do {
-    console.log(
-      `[b/slug] blocks.children.list → block_id="${normalizedId}"${cursor ? ` cursor="${cursor}"` : ""}`,
-    );
-    const chunk: any = await notion.blocks.children.list({
-      block_id: normalizedId,
-      page_size: 100,
-      start_cursor: cursor,
-    });
-    topLevel.push(...(chunk.results ?? []));
-    cursor = chunk.has_more ? (chunk.next_cursor ?? undefined) : undefined;
+    try {
+      const chunk: any = await notion.blocks.children.list({
+        block_id: storyId,
+        page_size: 100,
+        start_cursor: cursor,
+      });
+      topLevel.push(...(chunk.results ?? []));
+      cursor = chunk.has_more ? (chunk.next_cursor ?? undefined) : undefined;
+    } catch (err: any) {
+      // Surface the exact Notion error code and message — never swallow.
+      console.log("Notion API Error - code:", err?.code ?? "unknown", "message:", err?.message ?? String(err));
+      console.error("[b/slug] ❌ blocks.children.list threw:", err);
+      throw err; // Re-throw so the page renders the error, not the empty-state fallback.
+    }
   } while (cursor);
 
   if (depth === 0) {
     console.log(
-      `[b/slug] fetchBlocks: top-level block count=${topLevel.length}, types=[${[...new Set(topLevel.map((b: any) => b.type))].join(", ")}]`,
+      `[b/slug] fetchBlocks: top-level count=${topLevel.length}, types=[${[...new Set(topLevel.map((b: any) => b.type))].join(", ")}]`,
     );
   }
 
@@ -154,7 +169,7 @@ async function fetchBlocksFlat(
   await Promise.all(
     topLevel.map(async (block: any) => {
       if (block.has_children) {
-        block._children = await fetchBlocksFlat(notion, block.id, tokenHint, depth + 1);
+        block._children = await fetchBlocksFlat(notion, block.id, token, depth + 1);
       }
     }),
   );
@@ -162,11 +177,9 @@ async function fetchBlocksFlat(
   return topLevel;
 }
 
-async function fetchBlocks(notion: Client, pageId: string, tokenHint: string): Promise<any[]> {
-  const blocks = await fetchBlocksFlat(notion, pageId, tokenHint);
-  console.log(
-    `[b/slug] fetchBlocks complete — total top-level blocks: ${blocks.length}`,
-  );
+async function fetchBlocks(notion: Client, pageId: string, token: string): Promise<any[]> {
+  const blocks = await fetchBlocksFlat(notion, pageId, token);
+  console.log(`[b/slug] fetchBlocks complete — total top-level blocks: ${blocks.length}`);
   return blocks;
 }
 
@@ -320,8 +333,9 @@ export default async function PublicBlogPostPage({ params }: PageParams) {
     notFound();
   }
 
-  // 2. Resolve Notion credentials.
-  const creds = await resolveNotionCreds();
+  // 2. Resolve Notion credentials using the siteId stamped on this post.
+  console.log(`[b/slug] Resolving creds for siteId: ${postMeta.siteId ?? "null (will scan)"}`);
+  const creds = await resolveNotionCreds(postMeta.siteId);
   let blocks: any[] = [];
   let blocksError: string | null = null;
 
@@ -367,13 +381,12 @@ export default async function PublicBlogPostPage({ params }: PageParams) {
 
     // 4. Fetch blocks.
     if (pageId && !blocksError) {
-      const tokenHint = maskToken(creds.secret);
-      console.log(`[b/slug] About to fetch blocks — token="${tokenHint}", rawPageId="${pageId}"`);
+      console.log(`[b/slug] About to fetch blocks — token=${maskToken(creds.secret)}, rawPageId="${pageId}"`);
       try {
-        blocks = await fetchBlocks(notion, pageId, tokenHint);
-      } catch (err) {
-        blocksError = `Failed to fetch page content: ${err instanceof Error ? err.message : String(err)}`;
-        console.error("[b/slug] ❌ blocks.children.list failed:", err);
+        blocks = await fetchBlocks(notion, pageId, creds.secret);
+      } catch (err: any) {
+        blocksError = `Notion error: ${err?.message ?? String(err)}`;
+        console.error("[b/slug] ❌ fetchBlocks threw:", err);
       }
     }
   }

@@ -57,45 +57,32 @@ export default function DashboardPage() {
     setIsSaving(true);
     setMessage(null);
 
-    const payload = {
-      notionApiKey: notionApiKey || null,
-      blogDbId: blogDbId || null,
-      authorsDbId: authorsDbId || null,
-      tagsDbId: tagsDbId || null,
-      sitePagesDbId: sitePagesDbId || null,
+    // Only include non-empty values so merge:true never overwrites a saved
+    // token with null when the user saves without re-entering it.
+    const payload: Record<string, string | null> = {
       updatedAt: new Date().toISOString(),
     };
+    if (notionApiKey) payload.notionApiKey = notionApiKey;
+    if (blogDbId) payload.blogDbId = blogDbId;
+    if (authorsDbId) payload.authorsDbId = authorsDbId;
+    if (tagsDbId) payload.tagsDbId = tagsDbId;
+    if (sitePagesDbId) payload.sitePagesDbId = sitePagesDbId;
 
     // eslint-disable-next-line no-console
-    console.log("[handleSave] payload:", payload);
+    console.log("[handleSave] payload keys:", Object.keys(payload));
 
     const userRef = doc(db, "users", user.uid);
     const siteRef = doc(db, "sites", user.uid);
 
-    // Fire the writes. Don't await — Firestore with WebSocket transport queues
-    // the write locally and syncs in the background. We've confirmed the data
-    // lands in the DB even when the SDK never resolves the promise in this env.
-    void setDoc(userRef, payload, { merge: true }).then(() => {
-      // eslint-disable-next-line no-console
-      console.log("[handleSave] users/ write confirmed by server ✅");
-    }).catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error("[handleSave] users/ write error:", err);
-    });
-
-    void setDoc(siteRef, payload, { merge: true }).then(() => {
-      // eslint-disable-next-line no-console
-      console.log("[handleSave] sites/ write confirmed by server ✅");
-    }).catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error("[handleSave] sites/ write error:", err);
-    });
-
-    // Wait up to 2 seconds for confirmation; if no response, assume success
-    // since the data is already queued and will sync. Either way, unblock the button.
     const writeRace = Promise.all([
-      setDoc(userRef, payload, { merge: true }),
-      setDoc(siteRef, payload, { merge: true }),
+      setDoc(userRef, payload, { merge: true }).then(() => {
+        // eslint-disable-next-line no-console
+        console.log("[handleSave] users/ write confirmed ✅");
+      }),
+      setDoc(siteRef, payload, { merge: true }).then(() => {
+        // eslint-disable-next-line no-console
+        console.log("[handleSave] sites/ write confirmed ✅");
+      }),
     ]);
     const assumed = new Promise<"assumed">((resolve) => setTimeout(() => resolve("assumed"), 2000));
 
