@@ -11,14 +11,21 @@ type PageParams = { params: Promise<{ slug: string }> };
 async function loadPostMeta(slug: string) {
   console.log(`[b/slug] Server: Checking Firestore for slug "${slug}"...`);
 
-  const snap = await adminDb.collection("publicPosts").doc(slug).get();
+  // Query by slug field so doc-ID mismatches don't cause false misses.
+  const querySnap = await adminDb
+    .collection("publicPosts")
+    .where("slug", "==", slug)
+    .limit(1)
+    .get();
 
-  if (!snap.exists) {
+  const snap = querySnap.empty ? null : querySnap.docs[0];
+
+  if (!snap || !snap.exists) {
     console.log(`[b/slug] Server: Post not found in publicPosts for slug "${slug}"`);
     return null;
   }
 
-  const d = snap.data()!;
+  const d = snap.data() ?? {};
   console.log(`[b/slug] Server: Post found — isPublished: ${d.isPublished}, storyId: ${d.storyId ?? "none"}, title: ${d.title}`);
 
   if (!d.isPublished) {
@@ -64,22 +71,36 @@ async function resolveNotionCreds(): Promise<{ secret: string; databaseId: strin
   return { secret, databaseId };
 }
 
-// ─── Notion block fetching ─────────────────────────────────────────────────
+// ─── Notion block fetching (parallel depth-first) ─────────────────────────
 
-async function fetchBlocks(notion: Client, pageId: string): Promise<any[]> {
-  const blocks: any[] = [];
+async function fetchBlocksFlat(notion: Client, blockId: string): Promise<any[]> {
+  const topLevel: any[] = [];
   let cursor: string | undefined;
 
   do {
     const chunk: any = await notion.blocks.children.list({
-      block_id: pageId,
+      block_id: blockId,
       page_size: 100,
       start_cursor: cursor,
     });
-    blocks.push(...(chunk.results ?? []));
+    topLevel.push(...(chunk.results ?? []));
     cursor = chunk.has_more ? (chunk.next_cursor ?? undefined) : undefined;
   } while (cursor);
 
+  // Fetch children of expandable blocks in parallel.
+  await Promise.all(
+    topLevel.map(async (block: any) => {
+      if (block.has_children) {
+        block._children = await fetchBlocksFlat(notion, block.id);
+      }
+    }),
+  );
+
+  return topLevel;
+}
+
+async function fetchBlocks(notion: Client, pageId: string): Promise<any[]> {
+  const blocks = await fetchBlocksFlat(notion, pageId);
   console.log(`[b/slug] Server: Notion blocks fetched — count: ${blocks.length}, types: [${[...new Set(blocks.map((b: any) => b.type))].join(", ")}]`);
   return blocks;
 }
@@ -170,6 +191,7 @@ function renderBlock(block: any): React.ReactNode {
       return (
         <details key={block.id} className="my-3 rounded-lg border border-zinc-200 px-4 py-2 cursor-pointer">
           <summary className="font-medium text-zinc-800 select-none">{renderInline(rich)}</summary>
+          {Array.isArray(block._children) && block._children.map((c: any) => renderBlock(c))}
         </details>
       );
     case "video": {
