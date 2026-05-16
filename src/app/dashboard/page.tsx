@@ -74,33 +74,40 @@ export default function DashboardPage() {
     const userRef = doc(db, "users", user.uid);
     const siteRef = doc(db, "sites", user.uid);
 
-    const writeRace = Promise.all([
-      setDoc(userRef, payload, { merge: true }).then(() => {
-        // eslint-disable-next-line no-console
-        console.log("[handleSave] users/ write confirmed ✅");
-      }),
-      setDoc(siteRef, payload, { merge: true }).then(() => {
-        // eslint-disable-next-line no-console
-        console.log("[handleSave] sites/ write confirmed ✅");
-      }),
-    ]);
-    const assumed = new Promise<"assumed">((resolve) => setTimeout(() => resolve("assumed"), 2000));
+    try {
+      const writeRace = Promise.all([
+        setDoc(userRef, payload, { merge: true }).then(() => {
+          // eslint-disable-next-line no-console
+          console.log("SAVE SUCCESS: users/ write confirmed ✅");
+        }),
+        setDoc(siteRef, payload, { merge: true }).then(() => {
+          // eslint-disable-next-line no-console
+          console.log("SAVE SUCCESS: sites/ write confirmed ✅");
+        }),
+      ]);
+      const assumed = new Promise<"assumed">((resolve) => setTimeout(() => resolve("assumed"), 2000));
 
-    const result = await Promise.race([writeRace.then(() => "confirmed" as const), assumed]);
+      const result = await Promise.race([writeRace.then(() => "confirmed" as const), assumed]);
 
-    // eslint-disable-next-line no-console
-    console.log("[handleSave] result:", result);
+      // eslint-disable-next-line no-console
+      console.log("[handleSave] result:", result);
 
-    setIsSaving(false);
-    setMessage({
-      text: result === "confirmed"
-        ? "✅ Workspace saved successfully."
-        : "✅ Workspace saved (syncing in background).",
-      ok: true,
-    });
+      setIsSaving(false);
+      setMessage({
+        text: result === "confirmed"
+          ? "✅ Workspace saved successfully."
+          : "✅ Workspace saved (syncing in background).",
+        ok: true,
+      });
 
-    // Refresh server components so the new IDs are reflected immediately.
-    router.refresh();
+      // Refresh server components so the new IDs are reflected immediately.
+      router.refresh();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[handleSave] SAVE ERROR:", err);
+      setIsSaving(false);
+      setMessage({ text: "❌ Save failed. Check the console for details.", ok: false });
+    }
   }
 
   return (

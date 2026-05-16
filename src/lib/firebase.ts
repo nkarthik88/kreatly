@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, getFirestore, memoryLocalCache } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "AIzaSyA1ZQYCXHk2NQ9SbF1KfCBw6XvQJCBacb0",
@@ -16,10 +16,15 @@ const firebaseConfig = {
 console.log("[firebase] projectId:", firebaseConfig.projectId, "| apiKey present:", Boolean(firebaseConfig.apiKey));
 
 // getApps() guard makes this safe to call on every hot-reload re-import.
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// initializeFirestore must be called before any getFirestore on a fresh app,
+// so we branch on whether the app existed before this import.
+const isNewApp = getApps().length === 0;
+const app = isNewApp ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-// getFirestore always returns the existing instance — never throws on re-import.
-const db = getFirestore(app);
+// Memory cache prevents IndexedDB corruption errors during Next.js hot-reloads.
+const db = isNewApp
+  ? initializeFirestore(app, { localCache: memoryLocalCache() })
+  : getFirestore(app);
 
 // eslint-disable-next-line no-console
 console.log("[firebase] Firestore instance ready. App name:", app.name);
