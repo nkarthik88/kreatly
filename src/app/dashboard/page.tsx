@@ -44,21 +44,36 @@ export default function DashboardPage() {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
           const d = snap.data();
-          if (d.blogDbId) {
+          // Accept both naming conventions — older saves used e.g. blogDatabaseId,
+          // newer code writes blogDbId. Check both so existing users aren't stuck
+          // on the setup screen.
+          const resolvedBlogDbId =
+            (d.blogDbId as string | undefined) ||
+            (d.blogDatabaseId as string | undefined) || "";
+          if (resolvedBlogDbId) {
             setConfig({
               notionApiKey: (d.notionApiKey as string) || "",
-              blogDbId: d.blogDbId as string,
-              authorsDbId: (d.authorsDbId as string) || "",
-              tagsDbId: (d.tagsDbId as string) || "",
-              sitePagesDbId: (d.sitePagesDbId as string) || "",
+              blogDbId: resolvedBlogDbId,
+              authorsDbId:
+                (d.authorsDbId as string | undefined) ||
+                (d.authorsDatabaseId as string | undefined) || "",
+              tagsDbId:
+                (d.tagsDbId as string | undefined) ||
+                (d.tagsDatabaseId as string | undefined) || "",
+              sitePagesDbId:
+                (d.sitePagesDbId as string | undefined) ||
+                (d.sitePagesDatabaseId as string | undefined) || "",
             });
             return;
           }
-          // Doc exists but no blogDbId yet — prefill any partial fields
+          // Doc exists but no blog DB yet — prefill any partial saved fields
           if (d.notionApiKey) setNotionApiKey(d.notionApiKey as string);
-          if (d.authorsDbId) setAuthorsDbId(d.authorsDbId as string);
-          if (d.tagsDbId) setTagsDbId(d.tagsDbId as string);
-          if (d.sitePagesDbId) setSitePagesDbId(d.sitePagesDbId as string);
+          const savedAuthors = (d.authorsDbId || d.authorsDatabaseId) as string | undefined;
+          const savedTags = (d.tagsDbId || d.tagsDatabaseId) as string | undefined;
+          const savedPages = (d.sitePagesDbId || d.sitePagesDatabaseId) as string | undefined;
+          if (savedAuthors) setAuthorsDbId(savedAuthors);
+          if (savedTags) setTagsDbId(savedTags);
+          if (savedPages) setSitePagesDbId(savedPages);
         }
         setConfig(false);
       } catch (err) {
