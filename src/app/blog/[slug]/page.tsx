@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchAuthorByPageId, type AuthorProfile } from "@/lib/notion";
+import SubscribeBox from "@/app/blog/_components/SubscribeBox";
 
 type PageParams = {
   params: Promise<{ slug: string }>;
@@ -353,39 +354,66 @@ function renderBlock(block: any): React.ReactNode {
 
 export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
   const { slug } = await params;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://kreatly.vercel.app";
 
   try {
     const post = await fetchPostBySlug(slug);
     if (!post) {
       return {
-        title: "Post not found",
+        title: "Post not found — Kreatly",
         description: "This article is not published or does not exist.",
-        openGraph: {
-          title: "Post not found",
-          type: "article",
-        },
+        openGraph: { title: "Post not found — Kreatly", type: "article" },
       };
     }
 
-    const description = `Read ${post.title} on Kreatly.`;
+    // Build a rich description: first 160 chars of plain body text.
+    const plainText = post.blocks
+      .map((b: any) => {
+        const rich = b?.[b.type]?.rich_text;
+        return Array.isArray(rich)
+          ? rich.map((t: any) => t?.plain_text ?? "").join("")
+          : "";
+      })
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const description = plainText.length > 0
+      ? plainText.slice(0, 160).trimEnd() + (plainText.length > 160 ? "…" : "")
+      : `Read "${post.title}" on Kreatly.`;
+
+    const canonicalUrl = `${siteUrl}/blog/${slug}`;
+    const ogImage = post.blocks.find((b: any) => b.type === "image")
+      ? (post.blocks.find((b: any) => b.type === "image") as any)?.image?.external?.url ??
+        (post.blocks.find((b: any) => b.type === "image") as any)?.image?.file?.url ??
+        null
+      : null;
 
     return {
-      title: post.title,
+      title: `${post.title} — Kreatly`,
       description,
-      keywords: post.tags && post.tags.length > 0 ? post.tags : undefined,
+      keywords: post.tags.length > 0 ? post.tags : undefined,
+      alternates: { canonical: canonicalUrl },
       openGraph: {
         title: post.title,
+        description,
         type: "article",
+        url: canonicalUrl,
+        publishedTime: post.date ?? undefined,
+        tags: post.tags.length > 0 ? post.tags : undefined,
+        ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: post.title }] } : {}),
+      },
+      twitter: {
+        card: ogImage ? "summary_large_image" : "summary",
+        title: post.title,
+        description,
+        ...(ogImage ? { images: [ogImage] } : {}),
       },
     };
   } catch {
     return {
-      title: "Post not available",
-      description: "This article is not available.",
-      openGraph: {
-        title: "Post not available",
-        type: "article",
-      },
+      title: "Post not available — Kreatly",
+      description: "This article is not currently available.",
+      openGraph: { title: "Post not available — Kreatly", type: "article" },
     };
   }
 }
@@ -535,6 +563,8 @@ export default async function BlogReaderPage({ params }: PageParams) {
           </section>
         ) : null}
       </article>
+
+      <SubscribeBox slug={slug} />
     </main>
   );
 }

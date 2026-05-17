@@ -1,5 +1,6 @@
 import { Client } from "@notionhq/client";
 import Link from "next/link";
+import SubscribeBox from "@/app/blog/_components/SubscribeBox";
 
 type NotionIndexPost = {
   id: string;
@@ -132,6 +133,8 @@ export default async function BlogIndexPage() {
             ))}
           </ul>
         )}
+
+        <SubscribeBox />
       </section>
     </main>
   );
