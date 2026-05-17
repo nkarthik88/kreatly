@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -15,12 +15,18 @@ type Config = {
   sitePagesDbId: string;
 };
 
+type Metrics = {
+  total: number;
+  published: number;
+};
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
 
   // null = loading, false = not configured, Config = configured
   const [config, setConfig] = useState<Config | null | false>(null);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
 
   // Form state (only used when not yet configured)
   const [notionApiKey, setNotionApiKey] = useState("");
@@ -62,6 +68,28 @@ export default function DashboardPage() {
       }
     })();
   }, [user?.uid]);
+
+  // Fetch live post counts once the user is confirmed configured.
+  useEffect(() => {
+    if (!user?.uid || config === null || config === false) return;
+    void (async () => {
+      try {
+        const [blogsSnap, publishedSnap] = await Promise.all([
+          getDocs(collection(db, "blogs")),
+          getDocs(query(
+            collection(db, "publicPosts"),
+            where("siteId", "==", user.uid),
+            where("isPublished", "==", true),
+          )),
+        ]);
+        setMetrics({ total: blogsSnap.size, published: publishedSnap.size });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[dashboard] Could not fetch metrics:", err);
+        setMetrics({ total: 0, published: 0 });
+      }
+    })();
+  }, [user?.uid, config]);
 
   async function handleSave() {
     if (!user?.uid) {
@@ -217,9 +245,22 @@ export default function DashboardPage() {
 
       {/* Metric cards */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard label="Total Posts" value="—" hint="Sync Notion to populate" />
-        <MetricCard label="Published" value="—" hint="Posts visible on your blog" />
-        <MetricCard label="Notion Sync" value="Connected" hint={`DB: ${config.blogDbId.slice(0, 8)}…`} accent />
+        <MetricCard
+          label="Total Posts"
+          value={metrics === null ? null : String(metrics.total)}
+          hint="All posts synced from Notion"
+        />
+        <MetricCard
+          label="Published"
+          value={metrics === null ? null : String(metrics.published)}
+          hint="Live on your public blog"
+        />
+        <MetricCard
+          label="Notion Sync"
+          value="Connected"
+          hint={`DB: ${config.blogDbId.slice(0, 8)}…`}
+          accent
+        />
       </div>
 
       {/* Quick actions */}
@@ -289,16 +330,20 @@ function MetricCard({
   accent = false,
 }: {
   label: string;
-  value: string;
+  value: string | null; // null = loading
   hint: string;
   accent?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{label}</p>
-      <p className={`mt-2 text-2xl font-bold tracking-tight ${accent ? "text-emerald-600" : "text-zinc-900"}`}>
-        {value}
-      </p>
+      {value === null ? (
+        <div className="mt-2 h-8 w-16 animate-pulse rounded-md bg-zinc-100" />
+      ) : (
+        <p className={`mt-2 text-2xl font-bold tracking-tight ${accent ? "text-emerald-600" : "text-zinc-900"}`}>
+          {value}
+        </p>
+      )}
       <p className="mt-1 truncate font-mono text-[11px] text-zinc-400">{hint}</p>
     </div>
   );
