@@ -145,7 +145,7 @@ export default function DashboardPage() {
                 href="https://chameleon.notion.site/Kreatly-Master-Template-YOUR-LINK-HERE"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex w-full items-center justify-center rounded-[999px] border border-zinc-50 bg-zinc-50 px-4 py-2.5 text-center text-sm font-medium tracking-tight text-zinc-950 shadow-sm transition hover:bg-zinc-100 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                className="inline-flex w-full items-center justify-center rounded-[999px] border border-amber-500/60 bg-amber-500/10 px-4 py-2.5 text-center text-sm font-semibold tracking-tight text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.15)] transition hover:border-amber-400 hover:bg-amber-500/20 hover:shadow-[0_0_22px_rgba(245,158,11,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
               >
                 Duplicate to Notion
               </a>
@@ -256,7 +256,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => void handleSave()}
             disabled={isSaving}
-            className="inline-flex items-center justify-center rounded-[999px] border border-zinc-50 bg-zinc-50 px-6 py-3 text-sm font-semibold tracking-tight text-zinc-950 shadow-sm transition hover:bg-zinc-100 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-[999px] border border-cyan-500/60 bg-cyan-500/10 px-6 py-3 text-sm font-semibold tracking-tight text-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.15)] transition hover:border-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_22px_rgba(34,211,238,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? "Saving…" : "Save & Launch Blog"}
           </button>

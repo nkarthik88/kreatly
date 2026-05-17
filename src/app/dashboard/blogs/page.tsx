@@ -309,15 +309,15 @@ export default function BlogsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black px-10 py-10">
+    <div className="min-h-screen bg-[#0a0a0a] text-zinc-200 px-10 py-10">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-sm font-semibold uppercase tracking-[0.18em] text-black">
-          THE BLOGS
+        <h1 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+          Content
         </h1>
         <div className="flex items-center gap-2">
           <Link
             href="/blog"
-            className="inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-zinc-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open Public Site
@@ -326,7 +326,7 @@ export default function BlogsPage() {
             type="button"
             onClick={() => void handleSync()}
             disabled={isSyncing}
-            className="inline-flex items-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-900 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/60 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.15)] transition-all hover:border-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_20px_rgba(34,211,238,0.25)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             {isSyncing ? "Syncing..." : "Sync Notion"}
@@ -334,41 +334,41 @@ export default function BlogsPage() {
         </div>
       </div>
 
-      {error ? <p className="mt-4 text-sm text-red-500">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
       {showPublishedPanel ? (
-        <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
               Published Links
             </p>
             <button
               type="button"
               onClick={() => setShowPublishedPanel(false)}
-              className="text-xs font-medium text-zinc-500 hover:text-black"
+              className="text-xs font-medium text-zinc-600 hover:text-zinc-300"
             >
               Hide
             </button>
           </div>
           {publishedStories.length === 0 ? (
-            <p className="text-xs text-zinc-500">No published posts yet.</p>
+            <p className="text-xs text-zinc-600">No published posts yet.</p>
           ) : (
             <div className="space-y-2">
               {publishedStories.map((story) => (
                 <div
                   key={`published-${story.id}`}
-                  className="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-black">
+                    <p className="truncate text-sm font-medium text-zinc-200">
                       {story.title || "Untitled Post"}
                     </p>
-                    <p className="truncate text-xs text-zinc-500">{getPublicUrl(story.slug)}</p>
+                    <p className="truncate font-mono text-xs text-zinc-600">{getPublicUrl(story.slug)}</p>
                   </div>
                   <div className="ml-3 flex items-center gap-2">
                     <Link
                       href={`/b/${story.slug}`}
                       target="_blank"
-                      className="inline-flex items-center gap-1 rounded-[4px] border border-[#E5E5E5] px-2 py-1 text-xs text-black"
+                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                       Open
@@ -376,7 +376,7 @@ export default function BlogsPage() {
                     <button
                       type="button"
                       onClick={() => void handleCopyPublicLink(story.slug)}
-                      className="inline-flex items-center gap-1 rounded-[4px] border border-[#E5E5E5] px-2 py-1 text-xs text-black"
+                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
                     >
                       <Copy className="h-3.5 w-3.5" />
                       Copy
@@ -391,40 +391,40 @@ export default function BlogsPage() {
 
       <div className="mt-8">
         {stories.length > 0 ? (
-          <div className="border-t border-zinc-200">
+          <div className="divide-y divide-zinc-800 border-t border-zinc-800">
             {stories.map((story) => (
               <article
                 key={story.id}
-                className="flex items-center gap-4 border-b border-zinc-200 bg-white py-5"
+                className="flex items-center gap-4 py-4 transition-colors hover:bg-zinc-900/40"
               >
                 {/* Title + URL */}
                 <div className="flex-1 min-w-0">
                   <Link
                     href={`/blog/${encodeURIComponent(story.slug)}`}
-                    className="block truncate text-base font-semibold text-zinc-900 underline-offset-2 hover:underline hover:text-sky-600"
+                    className="block truncate text-sm font-semibold text-zinc-200 underline-offset-2 hover:text-cyan-400"
                   >
                     {story.title?.trim() || (isSyncing ? "Syncing..." : "Untitled Post")}
                   </Link>
                   {story.isPublished ? (
-                    <p className="mt-1 truncate text-xs text-zinc-500">
+                    <p className="mt-0.5 truncate font-mono text-xs text-zinc-600">
                       {getPublicUrl(story.slug)}
                     </p>
                   ) : null}
                 </div>
 
                 {/* Date */}
-                <p className="w-32 shrink-0 text-right text-sm text-zinc-500">
+                <p className="w-28 shrink-0 text-right font-mono text-xs text-zinc-600">
                   {formatLastEdited(story.lastEdited)}
                 </p>
 
                 {/* Status badge + toggle */}
-                <div className="w-32 shrink-0">
-                  <label className="inline-flex w-full items-center justify-end gap-2 text-xs text-zinc-600">
+                <div className="w-36 shrink-0">
+                  <label className="inline-flex w-full items-center justify-end gap-2 text-xs">
                     <span
                       className={
                         story.isPublished
-                          ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
-                          : "rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600"
+                          ? "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400"
+                          : "rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500"
                       }
                     >
                       {story.isPublished ? "Published" : "Draft"}
@@ -433,18 +433,18 @@ export default function BlogsPage() {
                       type="checkbox"
                       checked={story.isPublished}
                       onChange={(event) => void handlePublishToggle(story, event.target.checked)}
-                      className="h-4 w-4 shrink-0 accent-black"
+                      className="h-4 w-4 shrink-0 accent-cyan-400"
                     />
                   </label>
                 </div>
 
                 {/* Actions */}
-                <div className="w-40 shrink-0 text-right">
+                <div className="w-44 shrink-0 text-right">
                   {story.isPublished ? (
                     <div className="flex items-center justify-end gap-2">
                       <Link
                         href={`/b/${story.slug}`}
-                        className="rounded-[4px] border border-[#E5E5E5] px-2 py-1 text-xs text-black"
+                        className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
                         target="_blank"
                       >
                         View Post
@@ -452,32 +452,32 @@ export default function BlogsPage() {
                       <button
                         type="button"
                         onClick={() => void handleCopyPublicLink(story.slug)}
-                        className="inline-flex items-center gap-1 rounded-[4px] border border-[#E5E5E5] px-2 py-1 text-xs text-black"
+                        className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
                       >
                         <Copy className="h-3.5 w-3.5" />
-                        Copy Public Link
+                        Copy Link
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs text-zinc-400">Not Published</span>
+                    <span className="text-xs text-zinc-700">Draft</span>
                   )}
                 </div>
               </article>
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[280px] items-center justify-center border border-dashed border-zinc-200 bg-white">
+          <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30">
             <div className="text-center">
-              <p className="text-sm font-medium text-slate-600">
+              <p className="text-sm font-medium text-zinc-600">
                 {isSyncing
-                  ? "Syncing..."
-                  : "Your Blogs list is empty. Sync Notion to begin."}
+                  ? "Syncing from Notion…"
+                  : "No content yet. Sync Notion to begin."}
               </p>
               {!isSyncing ? (
                 <button
                   type="button"
                   onClick={clearCacheAndResync}
-                  className="mt-3 rounded-[4px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs font-medium text-black"
+                  className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
                 >
                   Clear Cache & Resync
                 </button>
@@ -487,12 +487,12 @@ export default function BlogsPage() {
         )}
       </div>
       {error && (
-        <p className="mt-3 text-xs text-zinc-500">
+        <p className="mt-3 text-xs text-zinc-700">
           If this persists, open server logs for attempted/resolved Notion IDs.
         </p>
       )}
       {toast ? (
-        <div className="fixed right-6 top-6 z-50 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_6px_20px_rgba(16,185,129,0.2)]">
+        <div className="fixed right-6 top-6 z-50 inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-zinc-950 px-3 py-2 text-xs font-medium text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.2)]">
           <Check className="h-3.5 w-3.5" />
           {toast}
         </div>

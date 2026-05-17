@@ -122,42 +122,39 @@ export default async function BlogIndexPage() {
   const posts = await fetchPublishedPosts();
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#0a0a0a] px-4 py-14 text-zinc-200 sm:px-6 lg:px-8">
       <section className="mx-auto max-w-3xl">
-        <header className="mb-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+        <header className="mb-12">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-500">
             Kreatly Blog
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-zinc-50 sm:text-4xl">
             Latest articles
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
-            Clean, Notion-powered posts rendered with your newsroom OS.
+            Notion-powered posts — sharp, fast, and always in sync.
           </p>
         </header>
 
         {posts.length === 0 ? (
-          <p className="mt-12 text-sm text-zinc-500">
+          <p className="mt-12 text-sm text-zinc-600">
             No published posts yet. Publish a story from your dashboard to see it here.
           </p>
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-3">
             {posts.map((post) => (
-              <li
-                key={post.id}
-                className="group rounded-xl border border-zinc-200 bg-white px-5 py-4 shadow-sm transition hover:border-zinc-300 hover:shadow-md"
-              >
+              <li key={post.id}>
                 <Link
                   href={`/blog/${encodeURIComponent(post.slug)}`}
-                  className="flex items-baseline justify-between gap-4"
+                  className="group flex items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-4 transition-all duration-150 hover:border-cyan-500/50 hover:bg-zinc-900 hover:shadow-[0_0_18px_rgba(34,211,238,0.08)]"
                 >
                   <div className="min-w-0 flex-1">
-                    <h2 className="truncate text-base font-semibold text-zinc-900 group-hover:text-sky-600">
+                    <h2 className="truncate text-base font-semibold text-zinc-100 transition group-hover:text-cyan-400">
                       {post.title}
                     </h2>
                   </div>
                   {post.date ? (
-                    <p className="shrink-0 text-xs text-zinc-500">
+                    <p className="shrink-0 font-mono text-[11px] text-zinc-600">
                       {formatDate(post.date)}
                     </p>
                   ) : null}

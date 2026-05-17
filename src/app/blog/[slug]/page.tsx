@@ -1,3 +1,4 @@
+import React from "react";
 import { Client } from "@notionhq/client";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -14,6 +15,7 @@ type NotionPost = {
   date: string | null;
   tags: string[];
   blocks: any[];
+  blocksError?: string | null;
   author?: AuthorProfile | null;
 };
 
@@ -214,7 +216,10 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
         : [];
 
     const blocks: any[] = [];
+    let blocksError: string | null = null;
     let blocksCursor: string | undefined;
+    // eslint-disable-next-line no-console
+    console.log("[blog/[slug]] fetching blocks for page id:", page.id);
     try {
       do {
         const chunk: any = await notion.blocks.children.list({
@@ -225,9 +230,12 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
         blocks.push(...(chunk.results ?? []));
         blocksCursor = chunk.has_more ? chunk.next_cursor ?? undefined : undefined;
       } while (blocksCursor);
-    } catch (blockError) {
       // eslint-disable-next-line no-console
-      console.error("[blog/[slug]] Failed to fetch Notion blocks:", blockError);
+      console.log("[blog/[slug]] blocks fetched:", blocks.length, "types:", [...new Set(blocks.map((b: any) => b.type))]);
+    } catch (blockErr) {
+      blocksError = blockErr instanceof Error ? blockErr.message : String(blockErr);
+      // eslint-disable-next-line no-console
+      console.error("[blog/[slug]] ❌ blocks.children.list failed:", blockErr);
     }
 
     return {
@@ -237,6 +245,7 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
       date,
       tags,
       blocks,
+      blocksError,
       author,
     };
   } catch (error) {
@@ -247,13 +256,28 @@ async function fetchPostBySlug(slug: string): Promise<NotionPost | null> {
   }
 }
 
-function renderRichText(rich: any[] | undefined): string {
-  if (!Array.isArray(rich)) return "";
-  return rich.map((t: any) => t?.plain_text || "").join("");
+function renderRichText(rich: any[] | undefined): React.ReactNode {
+  if (!Array.isArray(rich) || rich.length === 0) return null;
+  return rich.map((t: any, i: number) => {
+    const text = t?.plain_text || "";
+    if (!text) return null;
+    const ann = t?.annotations || {};
+    const href = t?.href;
+
+    let node: React.ReactNode = text;
+    if (ann.code) node = <code key={i} className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-sm text-cyan-300">{text}</code>;
+    if (ann.bold) node = <strong key={i}>{node}</strong>;
+    if (ann.italic) node = <em key={i}>{node}</em>;
+    if (ann.strikethrough) node = <s key={i}>{node}</s>;
+    if (ann.underline) node = <span key={i} className="underline">{node}</span>;
+    if (href) node = <a key={i} href={href} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">{node}</a>;
+
+    return <span key={i}>{node}</span>;
+  });
 }
 
-function renderBlock(block: any) {
-  const type = block.type;
+function renderBlock(block: any): React.ReactNode {
+  const type: string = block.type;
   const value = (block as any)[type];
 
   if (!value) return null;
@@ -261,46 +285,66 @@ function renderBlock(block: any) {
 
   switch (type) {
     case "heading_1":
-      return (
-        <h1 key={block.id} className="mt-8">
-          {renderRichText(rich)}
-        </h1>
-      );
+      return <h1 key={block.id} className="mt-8 text-2xl font-bold text-zinc-50">{renderRichText(rich)}</h1>;
     case "heading_2":
-      return (
-        <h2 key={block.id} className="mt-8">
-          {renderRichText(rich)}
-        </h2>
-      );
+      return <h2 key={block.id} className="mt-8 text-xl font-bold text-zinc-100">{renderRichText(rich)}</h2>;
     case "heading_3":
-      return (
-        <h3 key={block.id} className="mt-6">
-          {renderRichText(rich)}
-        </h3>
-      );
-    case "paragraph":
-      return (
-        <p key={block.id}>
-          {renderRichText(rich)}
-        </p>
-      );
+      return <h3 key={block.id} className="mt-6 text-lg font-semibold text-zinc-200">{renderRichText(rich)}</h3>;
+    case "paragraph": {
+      const content = renderRichText(rich);
+      return <p key={block.id} className="my-3 leading-7 text-zinc-400">{content || <br />}</p>;
+    }
     case "bulleted_list_item":
-      return (
-        <li key={block.id} className="list-disc">
-          {renderRichText(rich)}
-        </li>
-      );
+      return <li key={block.id} className="ml-6 list-disc leading-7 text-zinc-400">{renderRichText(rich)}</li>;
     case "numbered_list_item":
-      return (
-        <li key={block.id} className="list-decimal">
-          {renderRichText(rich)}
-        </li>
-      );
+      return <li key={block.id} className="ml-6 list-decimal leading-7 text-zinc-400">{renderRichText(rich)}</li>;
     case "quote":
       return (
-        <blockquote key={block.id}>
+        <blockquote key={block.id} className="my-4 border-l-4 border-cyan-500/50 pl-4 italic text-zinc-500">
           {renderRichText(rich)}
         </blockquote>
+      );
+    case "code": {
+      const lang = value?.language || "";
+      const codeText = Array.isArray(value?.rich_text)
+        ? value.rich_text.map((t: any) => t?.plain_text || "").join("")
+        : "";
+      return (
+        <pre key={block.id} className="my-4 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 px-5 py-4 text-sm text-cyan-300">
+          <code data-language={lang}>{codeText}</code>
+        </pre>
+      );
+    }
+    case "image": {
+      const src = value?.external?.url ?? value?.file?.url ?? null;
+      const caption = Array.isArray(value?.caption)
+        ? value.caption.map((t: any) => t?.plain_text || "").join("").trim()
+        : "";
+      if (!src) return null;
+      return (
+        <figure key={block.id} className="my-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={caption || "image"} className="w-full rounded-xl object-cover" />
+          {caption ? <figcaption className="mt-2 text-center text-xs text-zinc-600">{caption}</figcaption> : null}
+        </figure>
+      );
+    }
+    case "callout": {
+      const emoji = value?.icon?.emoji || "💡";
+      return (
+        <div key={block.id} className="my-4 flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <span>{emoji}</span>
+          <p className="leading-7 text-zinc-400">{renderRichText(rich)}</p>
+        </div>
+      );
+    }
+    case "divider":
+      return <hr key={block.id} className="my-8 border-zinc-800" />;
+    case "toggle":
+      return (
+        <details key={block.id} className="my-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-2">
+          <summary className="cursor-pointer font-medium text-zinc-300">{renderRichText(rich)}</summary>
+        </details>
       );
     default:
       return null;
@@ -366,9 +410,9 @@ export default async function BlogReaderPage({ params }: PageParams) {
 
   if (!post) {
     return (
-      <main className="min-h-screen bg-zinc-50 px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-[#0a0a0a] px-4 py-12 text-zinc-200 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
-          <div className="p-10 text-red-500 font-mono border border-red-500 rounded bg-red-50">
+          <div className="rounded-xl border border-red-500/40 bg-red-500/5 p-10 font-mono text-red-400">
             <h3 className="mb-3 text-sm font-semibold">DEBUG LOG:</h3>
             <pre className="whitespace-pre-wrap text-xs">
               {JSON.stringify(
@@ -392,23 +436,25 @@ export default async function BlogReaderPage({ params }: PageParams) {
     });
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#0a0a0a] px-4 py-12 text-zinc-200 sm:px-6 lg:px-8">
       <article className="mx-auto max-w-3xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-500">
           Kreatly Blog
         </p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
+        <h1 className="mt-4 text-3xl font-bold tracking-tight text-zinc-50 sm:text-4xl">
           {post.title}
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-          {formattedDate ? <p>{formattedDate}</p> : null}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {formattedDate ? (
+            <p className="font-mono text-xs text-zinc-600">{formattedDate}</p>
+          ) : null}
           {post.tags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {post.tags.map((tag) => (
                 <Link
                   key={tag}
                   href={`/blog/tag/${encodeURIComponent(tag.toLowerCase())}`}
-                  className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                  className="rounded-full border border-cyan-500/30 bg-cyan-500/5 px-2.5 py-0.5 text-[11px] font-medium text-cyan-400 transition hover:border-cyan-400/60 hover:bg-cyan-500/10"
                 >
                   {tag}
                 </Link>
@@ -417,25 +463,37 @@ export default async function BlogReaderPage({ params }: PageParams) {
           ) : null}
         </div>
 
-        <div className="mt-8 rounded-2xl border border-zinc-200 bg-white px-6 py-8 shadow-sm sm:px-10">
-          <div className="prose prose-lg max-w-3xl mx-auto prose-zinc dark:prose-invert prose-headings:font-semibold prose-p:text-zinc-700 prose-a:text-sky-600 prose-a:no-underline hover:prose-a:underline prose-li:my-1">
-            {post.blocks.map((block) => renderBlock(block))}
-          </div>
+        <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/40 px-6 py-8 sm:px-10">
+          {post.blocksError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 font-mono text-xs text-red-400">
+              <strong>Block fetch error:</strong> {post.blocksError}
+              <br />
+              Make sure the Kreatly Notion integration is invited to this page.
+            </div>
+          ) : post.blocks.length === 0 ? (
+            <p className="italic text-sm text-zinc-600">
+              No content blocks returned from Notion. Make sure the integration has access to this page and the page has content.
+            </p>
+          ) : (
+            <div className="max-w-3xl mx-auto">
+              {post.blocks.map((block) => renderBlock(block))}
+            </div>
+          )}
         </div>
 
         {post.author ? (
           <section className="mt-10">
-            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-5 py-5 sm:px-6">
               <div className="flex items-center gap-4">
                 {post.author.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={post.author.avatarUrl}
                     alt={post.author.name}
-                    className="h-10 w-10 rounded-full object-cover"
+                    className="h-10 w-10 rounded-full object-cover ring-2 ring-zinc-700"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold uppercase tracking-wide text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold uppercase tracking-wide text-cyan-400 ring-2 ring-cyan-500/30">
                     {post.author.name
                       .split(" ")
                       .map((part) => part[0])
@@ -446,12 +504,12 @@ export default async function BlogReaderPage({ params }: PageParams) {
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/blog/author/${encodeURIComponent(post.author.slug)}`}
-                    className="text-sm font-semibold text-zinc-900 hover:text-sky-600"
+                    className="text-sm font-semibold text-zinc-200 transition hover:text-cyan-400"
                   >
                     {post.author.name}
                   </Link>
                   {post.author.bio ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                    <p className="mt-1 line-clamp-2 text-xs text-zinc-600">
                       {post.author.bio}
                     </p>
                   ) : null}
@@ -462,22 +520,22 @@ export default async function BlogReaderPage({ params }: PageParams) {
         ) : null}
 
         {related.length > 0 ? (
-          <section className="mt-10 border-t border-zinc-200 pt-8">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <section className="mt-10 border-t border-zinc-800 pt-8">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
               Related posts
             </h2>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-2">
               {related.map((item) => (
                 <Link
                   key={item.id}
                   href={`/blog/${encodeURIComponent(item.slug)}`}
-                  className="group flex items-baseline justify-between gap-4 rounded-lg px-2 py-1.5 transition hover:bg-zinc-50"
+                  className="group flex items-baseline justify-between gap-4 rounded-lg px-3 py-2 transition hover:bg-zinc-900"
                 >
-                  <span className="truncate text-sm font-medium text-zinc-900 group-hover:text-sky-600">
+                  <span className="truncate text-sm font-medium text-zinc-400 group-hover:text-cyan-400">
                     {item.title}
                   </span>
                   {item.date ? (
-                    <span className="shrink-0 text-[11px] text-zinc-500">
+                    <span className="shrink-0 font-mono text-[11px] text-zinc-700">
                       {new Date(item.date).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",

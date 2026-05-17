@@ -43,8 +43,8 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white text-black">
-        <p className="text-sm text-slate-500">Loading workspace…</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] text-zinc-200">
+        <p className="text-sm text-zinc-600">Loading workspace…</p>
       </div>
     );
   }
@@ -54,29 +54,30 @@ export default function DashboardLayout({
   // Hide sidebar during setup flow for a focused onboarding experience
   if (pathname.startsWith("/dashboard/setup")) {
     return (
-      <main className="min-h-screen bg-white px-10 py-10 text-black">
+      <main className="min-h-screen bg-[#0a0a0a] px-10 py-10 text-zinc-200">
         <div className="mx-auto max-w-[1000px]">{children}</div>
       </main>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-white text-black">
-      <aside className="fixed left-0 top-0 flex h-full w-[260px] flex-col border-r border-zinc-200 bg-[#f8f9fa] px-6 py-6">
+    <div className="flex min-h-screen bg-[#0a0a0a] text-zinc-200">
+      <aside className="fixed left-0 top-0 flex h-full w-[260px] flex-col border-r border-zinc-800 bg-zinc-950 px-6 py-6">
         <div className="mb-6">
-          <div className="text-xl font-semibold tracking-tight text-black">
+          <div className="flex items-center gap-2 text-xl font-bold tracking-tight text-zinc-50">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-cyan-400 text-[10px] font-bold text-zinc-950">K</span>
             Kreatly
           </div>
           <Link
             href="https://bhanu-personal.kreatly.blog"
             target="_blank"
-            className="mt-1 inline-flex items-center text-xs font-medium text-sky-600 hover:underline"
+            className="mt-1 inline-flex items-center text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline"
           >
             bhanu-personal.kreatly.blog ↗
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -84,34 +85,34 @@ export default function DashboardLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-100 ${
                   isActive
-                    ? "bg-gray-200 text-sky-700"
-                    : "text-zinc-700 hover:bg-gray-200 hover:text-black"
+                    ? "bg-zinc-800 text-cyan-400 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.2)]"
+                    : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className={`h-4 w-4 ${isActive ? "text-cyan-400" : ""}`} />
                 {item.label}
               </Link>
             );
           })}
         </nav>
-        <div className="mt-6 border-t border-zinc-200 pt-4">
-          <p className="truncate text-xs text-zinc-500">{user?.email}</p>
+        <div className="mt-6 border-t border-zinc-800 pt-4">
+          <p className="truncate text-xs text-zinc-600">{user?.email}</p>
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-2 text-[11px] font-medium text-zinc-500 hover:text-black"
+            className="mt-2 text-[11px] font-medium text-zinc-600 transition hover:text-amber-400"
           >
             Logout
           </button>
         </div>
       </aside>
-      <div className="ml-[260px] flex-1 bg-white">
-        <div className="border-b border-zinc-200 px-10 py-4 text-sm text-zinc-500">
-          Kreatly / <span className="font-medium text-black">{breadcrumb}</span>
+      <div className="ml-[260px] flex-1 bg-[#0a0a0a]">
+        <div className="border-b border-zinc-800 px-10 py-4 text-sm text-zinc-600">
+          Kreatly / <span className="font-medium text-zinc-300">{breadcrumb}</span>
         </div>
-        <main className="bg-white px-10 py-10">
+        <main className="bg-[#0a0a0a] px-10 py-10">
           <div className="mx-auto max-w-[1000px]">{children}</div>
         </main>
       </div>
