@@ -5,10 +5,24 @@ import { useRouter } from "next/navigation";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import Link from "next/link";
+
+type Config = {
+  notionApiKey: string;
+  blogDbId: string;
+  authorsDbId: string;
+  tagsDbId: string;
+  sitePagesDbId: string;
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
+
+  // null = loading, false = not configured, Config = configured
+  const [config, setConfig] = useState<Config | null | false>(null);
+
+  // Form state (only used when not yet configured)
   const [notionApiKey, setNotionApiKey] = useState("");
   const [blogDbId, setBlogDbId] = useState("");
   const [authorsDbId, setAuthorsDbId] = useState("");
@@ -24,19 +38,27 @@ export default function DashboardPage() {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
           const d = snap.data();
-          // If the user already has a blog DB connected, skip setup and go straight to Content.
           if (d.blogDbId) {
-            router.replace("/dashboard/blogs");
+            setConfig({
+              notionApiKey: (d.notionApiKey as string) || "",
+              blogDbId: d.blogDbId as string,
+              authorsDbId: (d.authorsDbId as string) || "",
+              tagsDbId: (d.tagsDbId as string) || "",
+              sitePagesDbId: (d.sitePagesDbId as string) || "",
+            });
             return;
           }
+          // Doc exists but no blogDbId yet — prefill any partial fields
           if (d.notionApiKey) setNotionApiKey(d.notionApiKey as string);
           if (d.authorsDbId) setAuthorsDbId(d.authorsDbId as string);
           if (d.tagsDbId) setTagsDbId(d.tagsDbId as string);
           if (d.sitePagesDbId) setSitePagesDbId(d.sitePagesDbId as string);
         }
+        setConfig(false);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn("[dashboard] Could not load config:", err);
+        setConfig(false);
       }
     })();
   }, [user?.uid]);
@@ -50,7 +72,7 @@ export default function DashboardPage() {
     setIsSaving(true);
     setMessage(null);
 
-    const payload: Record<string, string | null> = { updatedAt: new Date().toISOString() };
+    const payload: Record<string, string> = { updatedAt: new Date().toISOString() };
     if (notionApiKey) payload.notionApiKey = notionApiKey;
     if (blogDbId) payload.blogDbId = blogDbId;
     if (authorsDbId) payload.authorsDbId = authorsDbId;
@@ -66,16 +88,10 @@ export default function DashboardPage() {
         setDoc(siteRef, payload, { merge: true }),
       ]);
       const assumed = new Promise<"assumed">((resolve) => setTimeout(() => resolve("assumed"), 2000));
-      const result = await Promise.race([writeRace.then(() => "confirmed" as const), assumed]);
+      await Promise.race([writeRace.then(() => "confirmed" as const), assumed]);
 
       setIsSaving(false);
-      setMessage({
-        text: result === "confirmed"
-          ? "Workspace saved! Redirecting…"
-          : "Workspace saved (syncing in background). Redirecting…",
-        ok: true,
-      });
-      // Send the user to Content now that their workspace is connected.
+      setMessage({ text: "Workspace saved. Taking you to Content…", ok: true });
       router.push("/dashboard/blogs");
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -85,100 +101,219 @@ export default function DashboardPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-white text-zinc-900">
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (config === null) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <p className="text-[13px] text-zinc-400">Loading…</p>
+      </div>
+    );
+  }
 
+  // ── Onboarding (not yet configured) ───────────────────────────────────────
+  if (config === false) {
+    return (
+      <div className="bg-white text-zinc-900">
+        <div className="mb-8">
+          <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Welcome to Kreatly</h1>
+          <p className="mt-1 text-[13px] text-zinc-400">
+            Connect your Notion workspace to launch your blog in minutes.
+          </p>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          {/* Step 1 */}
+          <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">Step 1</p>
+              <h2 className="mt-2 text-[15px] font-semibold text-zinc-900">Duplicate the Master Template</h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                Grab a fresh copy of the Kreatly Notion workspace — pre-wired with Blogs,
+                Authors, Tags, and Site Pages so you can start publishing instantly.
+              </p>
+            </div>
+            <div className="mt-6">
+              <a
+                href={process.env.NEXT_PUBLIC_NOTION_TEMPLATE_URL ?? "https://notion.so"}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"
+              >
+                Duplicate to Notion ↗
+              </a>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">Step 2</p>
+            <h2 className="mt-2 text-[15px] font-semibold text-zinc-900">Paste your IDs</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+              Connect your duplicated workspace by pasting the Notion database IDs below.
+            </p>
+
+            <form
+              className="mt-5 space-y-4"
+              onSubmit={(e) => { e.preventDefault(); void handleSave(); }}
+            >
+              {[
+                { label: "Notion API Secret", hint: "starts with ntn_", value: notionApiKey, setter: setNotionApiKey, type: "password", placeholder: "ntn_..." },
+                { label: "Blog Database ID", hint: "", value: blogDbId, setter: setBlogDbId, type: "text", placeholder: "Posts / Blog database ID" },
+                { label: "Authors Database ID", hint: "", value: authorsDbId, setter: setAuthorsDbId, type: "text", placeholder: "Authors database ID" },
+                { label: "Tags Database ID", hint: "", value: tagsDbId, setter: setTagsDbId, type: "text", placeholder: "Tags / Topics database ID" },
+                { label: "SitePages Database ID", hint: "", value: sitePagesDbId, setter: setSitePagesDbId, type: "text", placeholder: "SitePages / Static pages database ID" },
+              ].map(({ label, hint, value, setter, type, placeholder }) => (
+                <div key={label} className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                    {label}
+                    {hint ? <span className="ml-1 font-normal normal-case text-zinc-400">({hint})</span> : null}
+                  </label>
+                  <input
+                    type={type}
+                    value={value}
+                    onChange={(e) => setter(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-[13px] text-zinc-900 outline-none placeholder:text-zinc-300 transition-colors focus:border-zinc-400"
+                  />
+                </div>
+              ))}
+
+              {message ? (
+                <p className={`pt-1 text-[13px] font-medium ${message.ok ? "text-emerald-600" : "text-red-500"}`}>
+                  {message.text}
+                </p>
+              ) : null}
+            </form>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={isSaving}
+            className="rounded-md bg-zinc-900 px-6 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? "Saving…" : "Save & Launch Blog"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Overview dashboard (configured users) ─────────────────────────────────
+  return (
+    <div className="bg-white text-zinc-900">
       <div className="mb-8">
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Welcome to Kreatly</h1>
+        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Overview</h1>
         <p className="mt-1 text-[13px] text-zinc-400">
-          Connect your Notion workspace to launch your blog in minutes.
+          Your Kreatly workspace at a glance.
         </p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        {/* Step 1 */}
-        <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
-              Step 1
-            </p>
-            <h2 className="mt-2 text-[15px] font-semibold text-zinc-900">
-              Duplicate the Master Template
-            </h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
-              Grab a fresh copy of the Kreatly Notion workspace — pre-wired with Blogs,
-              Authors, Tags, and Site Pages so you can start publishing instantly.
-            </p>
-          </div>
-          <div className="mt-6">
-            <a
-              href={process.env.NEXT_PUBLIC_NOTION_TEMPLATE_URL ?? "https://notion.so"}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex w-full items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"
-            >
-              Duplicate to Notion ↗
-            </a>
-          </div>
-        </div>
+      {/* Metric cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <MetricCard label="Total Posts" value="—" hint="Sync Notion to populate" />
+        <MetricCard label="Published" value="—" hint="Posts visible on your blog" />
+        <MetricCard label="Notion Sync" value="Connected" hint={`DB: ${config.blogDbId.slice(0, 8)}…`} accent />
+      </div>
 
-        {/* Step 2 */}
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
-            Step 2
-          </p>
-          <h2 className="mt-2 text-[15px] font-semibold text-zinc-900">
-            Paste your IDs
-          </h2>
-          <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
-            Connect your duplicated workspace by pasting the Notion database IDs below.
-          </p>
-
-          <form
-            className="mt-5 space-y-4"
-            onSubmit={(e) => { e.preventDefault(); void handleSave(); }}
-          >
-            {[
-              { label: "Notion API Secret", hint: "starts with ntn_", value: notionApiKey, setter: setNotionApiKey, type: "password", placeholder: "ntn_..." },
-              { label: "Blog Database ID", hint: "", value: blogDbId, setter: setBlogDbId, type: "text", placeholder: "Posts / Blog database ID" },
-              { label: "Authors Database ID", hint: "", value: authorsDbId, setter: setAuthorsDbId, type: "text", placeholder: "Authors database ID" },
-              { label: "Tags Database ID", hint: "", value: tagsDbId, setter: setTagsDbId, type: "text", placeholder: "Tags / Topics database ID" },
-              { label: "SitePages Database ID", hint: "", value: sitePagesDbId, setter: setSitePagesDbId, type: "text", placeholder: "SitePages / Static pages database ID" },
-            ].map(({ label, hint, value, setter, type, placeholder }) => (
-              <div key={label} className="space-y-1.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                  {label}
-                  {hint ? <span className="ml-1 font-normal normal-case text-zinc-400">({hint})</span> : null}
-                </label>
-                <input
-                  type={type}
-                  value={value}
-                  onChange={(e) => setter(e.target.value)}
-                  placeholder={placeholder}
-                  className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-[13px] text-zinc-900 outline-none placeholder:text-zinc-300 transition-colors focus:border-zinc-400"
-                />
-              </div>
-            ))}
-
-            {message ? (
-              <p className={`pt-1 text-[13px] font-medium ${message.ok ? "text-emerald-600" : "text-red-500"}`}>
-                {message.text}
-              </p>
-            ) : null}
-          </form>
+      {/* Quick actions */}
+      <div className="mt-8">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Quick actions</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <QuickAction
+            href="/dashboard/blogs"
+            title="Content"
+            description="Sync and manage your Notion posts."
+          />
+          <QuickAction
+            href="/dashboard/settings"
+            title="Settings"
+            description="Update your Voice DNA and site URL."
+          />
+          <QuickAction
+            href="/blog"
+            title="View blog ↗"
+            description="See your public blog as readers see it."
+            external
+          />
         </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={isSaving}
-          className="rounded-md bg-zinc-900 px-6 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSaving ? "Saving…" : "Save & Launch Blog"}
-        </button>
+      {/* Workspace info */}
+      <div className="mt-8 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Workspace</p>
+        <dl className="mt-4 grid gap-3 text-[13px] sm:grid-cols-2">
+          {[
+            { label: "Blog DB ID", value: config.blogDbId || "—" },
+            { label: "Authors DB ID", value: config.authorsDbId || "—" },
+            { label: "Tags DB ID", value: config.tagsDbId || "—" },
+            { label: "SitePages DB ID", value: config.sitePagesDbId || "—" },
+          ].map(({ label, value }) => (
+            <div key={label} className="flex items-baseline gap-2">
+              <dt className="shrink-0 text-zinc-400">{label}</dt>
+              <dd className="truncate font-mono text-xs text-zinc-700">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-4">
+          <Link
+            href="/dashboard/settings"
+            className="text-[13px] font-medium text-zinc-500 underline-offset-2 hover:text-zinc-900 hover:underline"
+          >
+            Edit settings →
+          </Link>
+        </div>
       </div>
     </div>
   );
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{label}</p>
+      <p className={`mt-2 text-2xl font-bold tracking-tight ${accent ? "text-emerald-600" : "text-zinc-900"}`}>
+        {value}
+      </p>
+      <p className="mt-1 truncate font-mono text-[11px] text-zinc-400">{hint}</p>
+    </div>
+  );
+}
+
+function QuickAction({
+  href,
+  title,
+  description,
+  external = false,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  external?: boolean;
+}) {
+  const cls =
+    "flex flex-col gap-1 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50";
+  const inner = (
+    <>
+      <p className="text-[13px] font-semibold text-zinc-900">{title}</p>
+      <p className="text-xs text-zinc-400">{description}</p>
+    </>
+  );
+
+  if (external) {
+    return <a href={href} target="_blank" rel="noreferrer" className={cls}>{inner}</a>;
+  }
+  return <Link href={href} className={cls}>{inner}</Link>;
 }
