@@ -143,10 +143,7 @@ export default function BlogsPage() {
       localStorage.setItem("kreatly_blog_rows", JSON.stringify(mergedWithOverrides));
       sessionStorage.setItem("kreatly_blog_rows", JSON.stringify(mergedWithOverrides));
       // eslint-disable-next-line no-console
-      console.log(
-        "[BlogsPage] loadBlogsFromFirestore: loaded stories",
-        mergedWithOverrides.length,
-      );
+      console.log("[BlogsPage] loaded", mergedWithOverrides.length, "stories");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load blogs from Firestore.";
@@ -166,14 +163,8 @@ export default function BlogsPage() {
     setError(null);
 
     try {
-      console.log("[BlogsPage] handleSync: calling /api/notion/sync");
-
-      // Enforce a hard 15s client-side timeout so the button
-      // never spins forever if the server hangs.
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, 20000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 20000);
 
       const res = await fetch("/api/notion/sync", {
         method: "POST",
@@ -182,31 +173,17 @@ export default function BlogsPage() {
       });
 
       window.clearTimeout(timeoutId);
-      console.log("[BlogsPage] handleSync: response received", res.status);
 
       const contentType = res.headers.get("content-type");
 
       if (!res.ok) {
         if (contentType && contentType.includes("application/json")) {
           let errData: any = {};
-          try {
-            errData = await res.json();
-          } catch {
-            // ignore JSON parse error here; fall back to generic
-          }
-          throw new Error(
-            errData?.error ||
-              errData?.message ||
-              "Sync failed on server",
-          );
+          try { errData = await res.json(); } catch { /* ignore */ }
+          throw new Error(errData?.error || errData?.message || "Sync failed on server");
         } else {
           const textError = await res.text();
-          throw new Error(
-            `Server Timeout (504) or Crash. Vercel says: ${textError.substring(
-              0,
-              80,
-            )}...`,
-          );
+          throw new Error(`Server error: ${textError.substring(0, 80)}…`);
         }
       }
 
@@ -214,37 +191,23 @@ export default function BlogsPage() {
         ? await res.json()
         : {};
 
-      console.log("[BlogsPage] handleSync: parsed response body", data);
-
       const count = typeof data?.count === "number" ? data.count : 0;
-      const successMessage =
-        count > 0
-          ? `Sync complete. ${count} posts synced from Notion.`
-          : "Sync complete.";
-      openToast(successMessage);
-      console.log("[BlogsPage] handleSync: success", { count });
-
+      openToast(count > 0 ? `Sync complete. ${count} posts synced.` : "Sync complete.");
       await loadBlogsFromFirestore();
-      console.log("[BlogsPage] handleSync: finished reloading blogs");
     } catch (err) {
       const message =
         err instanceof Error
           ? err.name === "AbortError"
-            ? "Sync request exceeded 20 seconds and was cancelled. Please try again."
+            ? "Sync timed out after 20 seconds. Please try again."
             : err.message
           : "Failed to sync Notion";
       setError(message);
       openToast(message);
       // eslint-disable-next-line no-console
       console.error("[BlogsPage] handleSync: error", err);
-      if (typeof window !== "undefined") {
-        // Surface critical failures to the user explicitly.
-        window.alert(message);
-      }
+      if (typeof window !== "undefined") window.alert(message);
     } finally {
       setIsSyncing(false);
-      // eslint-disable-next-line no-console
-      console.log("[BlogsPage] handleSync: end");
     }
   }
 
@@ -291,9 +254,9 @@ export default function BlogsPage() {
   async function handleCopyPublicLink(slug: string) {
     try {
       await navigator.clipboard.writeText(getPublicUrl(slug));
-      openToast("Public link copied.");
+      openToast("Link copied.");
     } catch {
-      setError("Could not copy public link.");
+      setError("Could not copy link.");
     }
   }
 
@@ -302,83 +265,91 @@ export default function BlogsPage() {
       openToast("Publish at least one post first.");
       return;
     }
-
-    const firstUrl = getPublicUrl(publishedStories[0].slug);
-    window.open(firstUrl, "_blank", "noopener,noreferrer");
+    window.open(getPublicUrl(publishedStories[0].slug), "_blank", "noopener,noreferrer");
     setShowPublishedPanel(true);
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-200 px-10 py-10">
+    <div className="min-h-screen bg-white text-zinc-900">
+
+      {/* Header row */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-          Content
-        </h1>
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Content</h1>
+          <p className="mt-0.5 text-[13px] text-zinc-400">
+            {stories.length} {stories.length === 1 ? "post" : "posts"} synced from Notion
+          </p>
+        </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/blog"
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 transition-all hover:border-zinc-600 hover:text-zinc-100"
+          <button
+            type="button"
+            onClick={handleOpenPublicSite}
+            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-2 text-[13px] font-medium text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            Open Public Site
-          </Link>
+            View site
+          </button>
           <button
             type="button"
             onClick={() => void handleSync()}
             disabled={isSyncing}
-            className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/60 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.15)] transition-all hover:border-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_20px_rgba(34,211,238,0.25)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-zinc-700 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
-            {isSyncing ? "Syncing..." : "Sync Notion"}
+            {isSyncing ? "Syncing…" : "Sync Notion"}
           </button>
         </div>
       </div>
 
-      {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
+      {error ? (
+        <p className="mt-4 text-[13px] text-red-500">{error}</p>
+      ) : null}
+
+      {/* Published links panel */}
       {showPublishedPanel ? (
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+        <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-zinc-400">
               Published Links
             </p>
             <button
               type="button"
               onClick={() => setShowPublishedPanel(false)}
-              className="text-xs font-medium text-zinc-600 hover:text-zinc-300"
+              className="text-[13px] text-zinc-400 hover:text-zinc-700"
             >
               Hide
             </button>
           </div>
           {publishedStories.length === 0 ? (
-            <p className="text-xs text-zinc-600">No published posts yet.</p>
+            <p className="text-[13px] text-zinc-400">No published posts yet.</p>
           ) : (
             <div className="space-y-2">
               {publishedStories.map((story) => (
                 <div
                   key={`published-${story.id}`}
-                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2"
+                  className="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-200">
+                    <p className="truncate text-[13px] font-medium text-zinc-900">
                       {story.title || "Untitled Post"}
                     </p>
-                    <p className="truncate font-mono text-xs text-zinc-600">{getPublicUrl(story.slug)}</p>
+                    <p className="truncate text-xs text-zinc-400">{getPublicUrl(story.slug)}</p>
                   </div>
                   <div className="ml-3 flex items-center gap-2">
                     <Link
                       href={`/b/${story.slug}`}
                       target="_blank"
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+                      className="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="h-3 w-3" />
                       Open
                     </Link>
                     <button
                       type="button"
                       onClick={() => void handleCopyPublicLink(story.slug)}
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+                      className="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50"
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="h-3 w-3" />
                       Copy
                     </button>
                   </div>
@@ -389,42 +360,43 @@ export default function BlogsPage() {
         </div>
       ) : null}
 
+      {/* Posts table */}
       <div className="mt-8">
         {stories.length > 0 ? (
-          <div className="divide-y divide-zinc-800 border-t border-zinc-800">
+          <div className="divide-y divide-zinc-100 border-t border-zinc-100">
             {stories.map((story) => (
               <article
                 key={story.id}
-                className="flex items-center gap-4 py-4 transition-colors hover:bg-zinc-900/40"
+                className="flex items-center gap-4 py-4 transition-colors hover:bg-zinc-50"
               >
-                {/* Title + URL */}
+                {/* Title */}
                 <div className="flex-1 min-w-0">
                   <Link
                     href={`/blog/${encodeURIComponent(story.slug)}`}
-                    className="block truncate text-sm font-semibold text-zinc-200 underline-offset-2 hover:text-cyan-400"
+                    className="block truncate text-[13px] font-medium text-zinc-900 hover:underline"
                   >
-                    {story.title?.trim() || (isSyncing ? "Syncing..." : "Untitled Post")}
+                    {story.title?.trim() || (isSyncing ? "Syncing…" : "Untitled Post")}
                   </Link>
                   {story.isPublished ? (
-                    <p className="mt-0.5 truncate font-mono text-xs text-zinc-600">
+                    <p className="mt-0.5 truncate text-xs text-zinc-400">
                       {getPublicUrl(story.slug)}
                     </p>
                   ) : null}
                 </div>
 
                 {/* Date */}
-                <p className="w-28 shrink-0 text-right font-mono text-xs text-zinc-600">
+                <p className="w-28 shrink-0 text-right text-xs text-zinc-400">
                   {formatLastEdited(story.lastEdited)}
                 </p>
 
-                {/* Status badge + toggle */}
+                {/* Status pill + toggle */}
                 <div className="w-36 shrink-0">
-                  <label className="inline-flex w-full items-center justify-end gap-2 text-xs">
+                  <label className="inline-flex w-full items-center justify-end gap-2">
                     <span
                       className={
                         story.isPublished
-                          ? "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400"
-                          : "rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500"
+                          ? "rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700"
+                          : "rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-500"
                       }
                     >
                       {story.isPublished ? "Published" : "Draft"}
@@ -432,8 +404,8 @@ export default function BlogsPage() {
                     <input
                       type="checkbox"
                       checked={story.isPublished}
-                      onChange={(event) => void handlePublishToggle(story, event.target.checked)}
-                      className="h-4 w-4 shrink-0 accent-cyan-400"
+                      onChange={(e) => void handlePublishToggle(story, e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-zinc-900"
                     />
                   </label>
                 </div>
@@ -444,56 +416,56 @@ export default function BlogsPage() {
                     <div className="flex items-center justify-end gap-2">
                       <Link
                         href={`/b/${story.slug}`}
-                        className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+                        className="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50"
                         target="_blank"
                       >
-                        View Post
+                        View
                       </Link>
                       <button
                         type="button"
                         onClick={() => void handleCopyPublicLink(story.slug)}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+                        className="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50"
                       >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy Link
+                        <Copy className="h-3 w-3" />
+                        Copy link
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs text-zinc-700">Draft</span>
+                    <span className="text-xs text-zinc-300">—</span>
                   )}
                 </div>
               </article>
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30">
+          <div className="flex min-h-[260px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50">
             <div className="text-center">
-              <p className="text-sm font-medium text-zinc-600">
-                {isSyncing
-                  ? "Syncing from Notion…"
-                  : "No content yet. Sync Notion to begin."}
+              <p className="text-[13px] text-zinc-500">
+                {isSyncing ? "Syncing from Notion…" : "No content yet. Sync Notion to begin."}
               </p>
               {!isSyncing ? (
                 <button
                   type="button"
                   onClick={clearCacheAndResync}
-                  className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+                  className="mt-3 rounded border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
                 >
-                  Clear Cache & Resync
+                  Clear cache & resync
                 </button>
               ) : null}
             </div>
           </div>
         )}
       </div>
-      {error && (
-        <p className="mt-3 text-xs text-zinc-700">
-          If this persists, open server logs for attempted/resolved Notion IDs.
+
+      {error ? (
+        <p className="mt-3 text-xs text-zinc-400">
+          If this persists, check server logs for Notion sync details.
         </p>
-      )}
+      ) : null}
+
       {toast ? (
-        <div className="fixed right-6 top-6 z-50 inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-zinc-950 px-3 py-2 text-xs font-medium text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.2)]">
-          <Check className="h-3.5 w-3.5" />
+        <div className="fixed right-6 top-6 z-50 inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-[13px] font-medium text-zinc-700 shadow-md">
+          <Check className="h-3.5 w-3.5 text-emerald-500" />
           {toast}
         </div>
       ) : null}

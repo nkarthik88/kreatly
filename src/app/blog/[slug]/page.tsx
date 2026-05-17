@@ -265,12 +265,12 @@ function renderRichText(rich: any[] | undefined): React.ReactNode {
     const href = t?.href;
 
     let node: React.ReactNode = text;
-    if (ann.code) node = <code key={i} className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-sm text-cyan-300">{text}</code>;
+    if (ann.code) node = <code key={i} className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-sm text-zinc-800">{text}</code>;
     if (ann.bold) node = <strong key={i}>{node}</strong>;
     if (ann.italic) node = <em key={i}>{node}</em>;
     if (ann.strikethrough) node = <s key={i}>{node}</s>;
     if (ann.underline) node = <span key={i} className="underline">{node}</span>;
-    if (href) node = <a key={i} href={href} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">{node}</a>;
+    if (href) node = <a key={i} href={href} target="_blank" rel="noreferrer" className="text-zinc-900 underline underline-offset-2 hover:text-zinc-600">{node}</a>;
 
     return <span key={i}>{node}</span>;
   });
@@ -285,22 +285,22 @@ function renderBlock(block: any): React.ReactNode {
 
   switch (type) {
     case "heading_1":
-      return <h1 key={block.id} className="mt-8 text-2xl font-bold text-zinc-50">{renderRichText(rich)}</h1>;
+      return <h1 key={block.id} className="mt-8 text-2xl font-bold text-zinc-900">{renderRichText(rich)}</h1>;
     case "heading_2":
-      return <h2 key={block.id} className="mt-8 text-xl font-bold text-zinc-100">{renderRichText(rich)}</h2>;
+      return <h2 key={block.id} className="mt-8 text-xl font-bold text-zinc-900">{renderRichText(rich)}</h2>;
     case "heading_3":
-      return <h3 key={block.id} className="mt-6 text-lg font-semibold text-zinc-200">{renderRichText(rich)}</h3>;
+      return <h3 key={block.id} className="mt-6 text-lg font-semibold text-zinc-800">{renderRichText(rich)}</h3>;
     case "paragraph": {
       const content = renderRichText(rich);
-      return <p key={block.id} className="my-3 leading-7 text-zinc-400">{content || <br />}</p>;
+      return <p key={block.id} className="my-3 leading-7 text-zinc-600">{content || <br />}</p>;
     }
     case "bulleted_list_item":
-      return <li key={block.id} className="ml-6 list-disc leading-7 text-zinc-400">{renderRichText(rich)}</li>;
+      return <li key={block.id} className="ml-6 list-disc leading-7 text-zinc-600">{renderRichText(rich)}</li>;
     case "numbered_list_item":
-      return <li key={block.id} className="ml-6 list-decimal leading-7 text-zinc-400">{renderRichText(rich)}</li>;
+      return <li key={block.id} className="ml-6 list-decimal leading-7 text-zinc-600">{renderRichText(rich)}</li>;
     case "quote":
       return (
-        <blockquote key={block.id} className="my-4 border-l-4 border-cyan-500/50 pl-4 italic text-zinc-500">
+        <blockquote key={block.id} className="my-4 border-l-4 border-zinc-200 pl-4 italic text-zinc-500">
           {renderRichText(rich)}
         </blockquote>
       );
@@ -310,7 +310,7 @@ function renderBlock(block: any): React.ReactNode {
         ? value.rich_text.map((t: any) => t?.plain_text || "").join("")
         : "";
       return (
-        <pre key={block.id} className="my-4 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 px-5 py-4 text-sm text-cyan-300">
+        <pre key={block.id} className="my-4 overflow-x-auto rounded-lg border border-zinc-100 bg-zinc-50 px-5 py-4 text-sm text-zinc-800">
           <code data-language={lang}>{codeText}</code>
         </pre>
       );
@@ -324,26 +324,26 @@ function renderBlock(block: any): React.ReactNode {
       return (
         <figure key={block.id} className="my-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={caption || "image"} className="w-full rounded-xl object-cover" />
-          {caption ? <figcaption className="mt-2 text-center text-xs text-zinc-600">{caption}</figcaption> : null}
+          <img src={src} alt={caption || "image"} className="w-full rounded-lg object-cover" />
+          {caption ? <figcaption className="mt-2 text-center text-xs text-zinc-400">{caption}</figcaption> : null}
         </figure>
       );
     }
     case "callout": {
       const emoji = value?.icon?.emoji || "💡";
       return (
-        <div key={block.id} className="my-4 flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+        <div key={block.id} className="my-4 flex gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
           <span>{emoji}</span>
-          <p className="leading-7 text-zinc-400">{renderRichText(rich)}</p>
+          <p className="leading-7 text-zinc-600">{renderRichText(rich)}</p>
         </div>
       );
     }
     case "divider":
-      return <hr key={block.id} className="my-8 border-zinc-800" />;
+      return <hr key={block.id} className="my-8 border-zinc-100" />;
     case "toggle":
       return (
-        <details key={block.id} className="my-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-2">
-          <summary className="cursor-pointer font-medium text-zinc-300">{renderRichText(rich)}</summary>
+        <details key={block.id} className="my-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2">
+          <summary className="cursor-pointer font-medium text-zinc-700">{renderRichText(rich)}</summary>
         </details>
       );
     default:
@@ -410,16 +410,12 @@ export default async function BlogReaderPage({ params }: PageParams) {
 
   if (!post) {
     return (
-      <main className="min-h-screen bg-[#0a0a0a] px-4 py-12 text-zinc-200 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-white px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
-          <div className="rounded-xl border border-red-500/40 bg-red-500/5 p-10 font-mono text-red-400">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-8 font-mono text-red-700">
             <h3 className="mb-3 text-sm font-semibold">DEBUG LOG:</h3>
             <pre className="whitespace-pre-wrap text-xs">
-              {JSON.stringify(
-                debugError || "Post simply returned null",
-                null,
-                2,
-              )}
+              {JSON.stringify(debugError || "Post simply returned null", null, 2)}
             </pre>
           </div>
         </div>
@@ -436,17 +432,17 @@ export default async function BlogReaderPage({ params }: PageParams) {
     });
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-4 py-12 text-zinc-200 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-white px-4 py-12 text-zinc-900 sm:px-6 lg:px-8">
       <article className="mx-auto max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-500">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400">
           Kreatly Blog
         </p>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight text-zinc-50 sm:text-4xl">
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
           {post.title}
         </h1>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           {formattedDate ? (
-            <p className="font-mono text-xs text-zinc-600">{formattedDate}</p>
+            <p className="text-xs text-zinc-400">{formattedDate}</p>
           ) : null}
           {post.tags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -454,7 +450,7 @@ export default async function BlogReaderPage({ params }: PageParams) {
                 <Link
                   key={tag}
                   href={`/blog/tag/${encodeURIComponent(tag.toLowerCase())}`}
-                  className="rounded-full border border-cyan-500/30 bg-cyan-500/5 px-2.5 py-0.5 text-[11px] font-medium text-cyan-400 transition hover:border-cyan-400/60 hover:bg-cyan-500/10"
+                  className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900"
                 >
                   {tag}
                 </Link>
@@ -463,83 +459,73 @@ export default async function BlogReaderPage({ params }: PageParams) {
           ) : null}
         </div>
 
-        <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/40 px-6 py-8 sm:px-10">
+        <div className="mt-8">
           {post.blocksError ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 font-mono text-xs text-red-400">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 font-mono text-xs text-red-700">
               <strong>Block fetch error:</strong> {post.blocksError}
               <br />
               Make sure the Kreatly Notion integration is invited to this page.
             </div>
           ) : post.blocks.length === 0 ? (
-            <p className="italic text-sm text-zinc-600">
-              No content blocks returned from Notion. Make sure the integration has access to this page and the page has content.
+            <p className="italic text-sm text-zinc-400">
+              No content blocks returned from Notion.
             </p>
           ) : (
-            <div className="max-w-3xl mx-auto">
+            <div className="mx-auto max-w-3xl">
               {post.blocks.map((block) => renderBlock(block))}
             </div>
           )}
         </div>
 
         {post.author ? (
-          <section className="mt-10">
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-5 py-5 sm:px-6">
-              <div className="flex items-center gap-4">
-                {post.author.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={post.author.avatarUrl}
-                    alt={post.author.name}
-                    className="h-10 w-10 rounded-full object-cover ring-2 ring-zinc-700"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold uppercase tracking-wide text-cyan-400 ring-2 ring-cyan-500/30">
-                    {post.author.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/blog/author/${encodeURIComponent(post.author.slug)}`}
-                    className="text-sm font-semibold text-zinc-200 transition hover:text-cyan-400"
-                  >
-                    {post.author.name}
-                  </Link>
-                  {post.author.bio ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-zinc-600">
-                      {post.author.bio}
-                    </p>
-                  ) : null}
+          <section className="mt-12 border-t border-zinc-100 pt-8">
+            <div className="flex items-center gap-4">
+              {post.author.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={post.author.avatarUrl}
+                  alt={post.author.name}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  {post.author.name.split(" ").map((p) => p[0]).join("").slice(0, 2)}
                 </div>
+              )}
+              <div className="min-w-0">
+                <Link
+                  href={`/blog/author/${encodeURIComponent(post.author.slug)}`}
+                  className="text-sm font-semibold text-zinc-900 transition-colors hover:text-zinc-600"
+                >
+                  {post.author.name}
+                </Link>
+                {post.author.bio ? (
+                  <p className="mt-0.5 line-clamp-2 text-xs text-zinc-400">{post.author.bio}</p>
+                ) : null}
               </div>
             </div>
           </section>
         ) : null}
 
         {related.length > 0 ? (
-          <section className="mt-10 border-t border-zinc-800 pt-8">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
+          <section className="mt-10 border-t border-zinc-100 pt-8">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400">
               Related posts
             </h2>
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-1">
               {related.map((item) => (
                 <Link
                   key={item.id}
                   href={`/blog/${encodeURIComponent(item.slug)}`}
-                  className="group flex items-baseline justify-between gap-4 rounded-lg px-3 py-2 transition hover:bg-zinc-900"
+                  className="group flex items-baseline justify-between gap-4 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50"
                 >
-                  <span className="truncate text-sm font-medium text-zinc-400 group-hover:text-cyan-400">
+                  <span className="truncate text-[13px] font-medium text-zinc-700 group-hover:text-zinc-900">
                     {item.title}
                   </span>
                   {item.date ? (
-                    <span className="shrink-0 font-mono text-[11px] text-zinc-700">
+                    <span className="shrink-0 text-xs text-zinc-400">
                       {new Date(item.date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
+                        month: "short", day: "numeric", year: "numeric",
                       })}
                     </span>
                   ) : null}

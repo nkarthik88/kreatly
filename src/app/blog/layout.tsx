@@ -34,40 +34,34 @@ export default function BlogLayout({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0a0a0a] text-zinc-200">
-      <header className="border-b border-zinc-800 bg-[#0a0a0a]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen flex-col bg-white text-zinc-900">
+      <header className="border-b border-zinc-100 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href="/blog"
-            className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-100"
+            className="text-sm font-semibold tracking-tight text-zinc-900"
           >
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-cyan-400 text-[10px] font-bold text-zinc-950">
-              K
-            </span>
-            <span>Kreatly Blog</span>
+            Kreatly Blog
           </Link>
           <nav className="flex items-center gap-3 text-xs font-medium text-zinc-500">
             <button
               type="button"
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-[11px] font-medium text-zinc-400 shadow-sm transition hover:border-zinc-600 hover:text-zinc-200"
+              className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 shadow-sm transition-colors hover:border-zinc-300 hover:text-zinc-900"
             >
               <SearchIcon className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Search</span>
-              <span className="hidden items-center gap-0.5 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 sm:inline-flex">
+              <kbd className="hidden rounded border border-zinc-200 bg-zinc-50 px-1 py-0.5 text-[10px] text-zinc-400 sm:inline">
                 ⌘K
-              </span>
+              </kbd>
             </button>
             <Link
               href="https://twitter.com"
-              className="hidden text-xs transition hover:text-cyan-400 sm:inline"
+              className="hidden text-xs text-zinc-500 transition-colors hover:text-zinc-900 sm:inline"
               target="_blank"
               rel="noreferrer"
             >
               Twitter
-            </Link>
-            <Link href="/blog/rss" className="hidden text-xs transition hover:text-cyan-400 sm:inline">
-              RSS
             </Link>
           </nav>
         </div>
@@ -77,12 +71,10 @@ export default function BlogLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <footer className="border-t border-zinc-800 bg-zinc-950/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 text-xs text-zinc-600 sm:px-6 lg:px-8">
+      <footer className="border-t border-zinc-100 bg-white">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 text-xs text-zinc-400 sm:px-6 lg:px-8">
           <span>© 2026 Kreatly. Built with Notion.</span>
-          <span className="hidden sm:inline">
-            Kreatly Newsroom OS · Premium reading experience
-          </span>
+          <span className="hidden sm:inline">Kreatly Newsroom OS</span>
         </div>
       </footer>
 
@@ -99,16 +91,11 @@ function SearchModal({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
+    inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
+    if (!query.trim()) { setResults([]); return; }
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
@@ -122,28 +109,17 @@ function SearchModal({ onClose }: { onClose: () => void }) {
           body: JSON.stringify({ query }),
         });
         const data = await response.json();
-        if (!response.ok || data?.success === false) {
-          // eslint-disable-next-line no-console
-          console.error(data?.message || "Search failed.");
-          setResults([]);
-          return;
-        }
-
+        if (!response.ok || data?.success === false) { setResults([]); return; }
         setResults(Array.isArray(data.items) ? (data.items as SearchResult[]) : []);
       } catch (error) {
         if (controller.signal.aborted) return;
-        // eslint-disable-next-line no-console
-        console.error("Search error:", error);
         setResults([]);
       } finally {
         setIsSearching(false);
       }
     }, 200);
 
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
+    return () => { window.clearTimeout(timeoutId); controller.abort(); };
   }, [query]);
 
   function handleSelect(slug: string) {
@@ -152,31 +128,31 @@ function SearchModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/70 px-4 pt-24 backdrop-blur-sm sm:items-center sm:pt-0">
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-950 shadow-[0_0_60px_rgba(0,0,0,0.8)]">
-        <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-2.5">
-          <SearchIcon className="h-4 w-4 text-zinc-500" />
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/20 px-4 pt-24 backdrop-blur-sm sm:items-center sm:pt-0">
+      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
+        <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2.5">
+          <SearchIcon className="h-4 w-4 text-zinc-400" />
           <input
             ref={inputRef}
             autoComplete="off"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search articles by title or description…"
-            className="flex-1 border-none bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
+            placeholder="Search articles…"
+            className="flex-1 border-none bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
           />
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-500"
+            className="rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-medium text-zinc-500"
           >
             Esc
           </button>
         </div>
         <div className="max-h-80 overflow-y-auto px-1 py-2">
           {isSearching ? (
-            <p className="px-3 py-2 text-xs text-zinc-600">Searching…</p>
+            <p className="px-3 py-2 text-xs text-zinc-400">Searching…</p>
           ) : results.length === 0 && query.trim() ? (
-            <p className="px-3 py-2 text-xs text-zinc-600">No matches found.</p>
+            <p className="px-3 py-2 text-xs text-zinc-400">No matches found.</p>
           ) : (
             <ul className="space-y-0.5">
               {results.map((item) => (
@@ -184,15 +160,13 @@ function SearchModal({ onClose }: { onClose: () => void }) {
                   <button
                     type="button"
                     onClick={() => handleSelect(item.slug)}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:bg-zinc-800 hover:text-cyan-400"
+                    className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
                   >
                     <span className="truncate">{item.title}</span>
                     {item.date ? (
-                      <span className="ml-4 shrink-0 font-mono text-[11px] text-zinc-600">
+                      <span className="ml-4 shrink-0 text-[11px] text-zinc-400">
                         {new Date(item.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
+                          month: "short", day: "numeric", year: "numeric",
                         })}
                       </span>
                     ) : null}
@@ -206,5 +180,3 @@ function SearchModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-
-
