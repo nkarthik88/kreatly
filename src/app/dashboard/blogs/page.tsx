@@ -169,6 +169,8 @@ export default function BlogsPage() {
       const res = await fetch("/api/notion/sync", {
         method: "POST",
         cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user?.uid ?? null }),
         signal: controller.signal,
       });
 

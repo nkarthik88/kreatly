@@ -24,8 +24,12 @@ export default function DashboardPage() {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
           const d = snap.data();
+          // If the user already has a blog DB connected, skip setup and go straight to Content.
+          if (d.blogDbId) {
+            router.replace("/dashboard/blogs");
+            return;
+          }
           if (d.notionApiKey) setNotionApiKey(d.notionApiKey as string);
-          if (d.blogDbId) setBlogDbId(d.blogDbId as string);
           if (d.authorsDbId) setAuthorsDbId(d.authorsDbId as string);
           if (d.tagsDbId) setTagsDbId(d.tagsDbId as string);
           if (d.sitePagesDbId) setSitePagesDbId(d.sitePagesDbId as string);
@@ -67,11 +71,12 @@ export default function DashboardPage() {
       setIsSaving(false);
       setMessage({
         text: result === "confirmed"
-          ? "Workspace saved successfully."
-          : "Workspace saved (syncing in background).",
+          ? "Workspace saved! Redirecting…"
+          : "Workspace saved (syncing in background). Redirecting…",
         ok: true,
       });
-      router.refresh();
+      // Send the user to Content now that their workspace is connected.
+      router.push("/dashboard/blogs");
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("[handleSave] SAVE ERROR:", err);
@@ -107,7 +112,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-6">
             <a
-              href="https://chameleon.notion.site/Kreatly-Master-Template-YOUR-LINK-HERE"
+              href={process.env.NEXT_PUBLIC_NOTION_TEMPLATE_URL ?? "https://notion.so"}
               target="_blank"
               rel="noreferrer"
               className="inline-flex w-full items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"

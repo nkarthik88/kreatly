@@ -118,32 +118,55 @@ function normalizeNotionId(id: string): string {
   return `${raw.slice(0,8)}-${raw.slice(8,12)}-${raw.slice(12,16)}-${raw.slice(16,20)}-${raw.slice(20)}`;
 }
 
-// ── Resolve creds from Firestore first, env vars as fallback ─────────────────
-async function resolveSyncCreds(): Promise<{ secret: string; dbId: string } | null> {
+// ── Resolve creds for a specific user (uid), with env-var fallback ───────────
+async function resolveSyncCreds(uid?: string | null): Promise<{ secret: string; dbId: string; resolvedUid: string | null } | null> {
+  // 1. Try the specific user's site doc when uid is provided.
+  if (uid) {
+    try {
+      const siteDoc = await adminDb.collection("sites").doc(uid).get();
+      if (siteDoc.exists) {
+        const d = siteDoc.data()!;
+        const secret: string | undefined =
+          d.notionApiKey ?? d.notionToken ?? d.notion_token ?? d.notionSecret ?? undefined;
+        const rawDbId: string | undefined =
+          d.blogDbId ?? d.notionDatabaseId ?? d.notion_database_id ?? undefined;
+        if (secret && rawDbId) {
+          const dbId = normalizeNotionId(rawDbId);
+          console.log(`[api/notion/sync] Creds from sites/${uid} — dbId: ${dbId}`);
+          return { secret, dbId, resolvedUid: uid };
+        }
+      }
+    } catch (err) {
+      console.warn(`[api/notion/sync] Could not read sites/${uid}:`, err);
+    }
+  }
+
+  // 2. Scan up to 5 site docs (single-user / legacy fallback).
   try {
     const sitesSnap = await adminDb.collection("sites").limit(5).get();
     for (const siteDoc of sitesSnap.docs) {
       const d = siteDoc.data();
       const secret: string | undefined =
         d.notionApiKey ?? d.notionToken ?? d.notion_token ?? d.notionSecret ?? undefined;
-      const dbId: string | undefined =
+      const rawDbId: string | undefined =
         d.blogDbId ?? d.notionDatabaseId ?? d.notion_database_id ?? undefined;
-      if (secret && dbId) {
-        const normalizedDbId = normalizeNotionId(dbId);
-        console.log(`[api/notion/sync] Creds from Firestore sites/${siteDoc.id} — raw dbId: ${dbId}, normalized: ${normalizedDbId}`);
-        return { secret, dbId: normalizedDbId };
+      if (secret && rawDbId) {
+        const dbId = normalizeNotionId(rawDbId);
+        console.log(`[api/notion/sync] Creds from Firestore sites/${siteDoc.id} — dbId: ${dbId}`);
+        return { secret, dbId, resolvedUid: siteDoc.id };
       }
     }
   } catch (err) {
     console.warn("[api/notion/sync] Could not read sites collection:", err);
   }
 
+  // 3. Env-var fallback (dev / self-hosted).
   const secret = process.env.NOTION_SECRET ?? process.env.NOTION_TOKEN ?? process.env.NOTION_API_KEY;
   const rawDbId = process.env.NOTION_DATABASE_ID ?? process.env.NOTION_DB_ID;
   if (secret && rawDbId) {
     const dbId = normalizeNotionId(rawDbId);
-    console.log(`[api/notion/sync] Creds from env vars — raw dbId: ${rawDbId}, normalized: ${dbId}`);
-    return { secret, dbId };
+    console.log(`[api/notion/sync] Creds from env vars — dbId: ${dbId}`);
+    return { secret, dbId, resolvedUid: uid ?? null };
   }
 
   return null;
@@ -163,8 +186,8 @@ async function deleteCollection(collectionPath: string): Promise<number> {
   return deleted;
 }
 
-async function syncOnce() {
-  const creds = await resolveSyncCreds();
+async function syncOnce(uid?: string | null) {
+  const creds = await resolveSyncCreds(uid);
   if (!creds) {
     console.error("[api/notion/sync] ❌ No Notion credentials found. Save your API key in the dashboard settings.");
     return NextResponse.json(
@@ -173,7 +196,7 @@ async function syncOnce() {
     );
   }
 
-  const { secret, dbId } = creds;
+  const { secret, dbId, resolvedUid } = creds;
   console.log(`[api/notion/sync] Using DB ID: ${dbId}`);
 
   const notion = new Client({ auth: secret });
@@ -259,26 +282,20 @@ async function syncOnce() {
   //           so we can preserve SEO metadata even when slugs change.
   const prevBySlug = new Map<string, any>();
   const prevByStoryId = new Map<string, any>();
-  let siteId: string | null = null;
+  // siteId is the uid of the site owner — known from creds resolution.
+  let siteId: string | null = resolvedUid ?? null;
   try {
     const pubSnap = await adminDb.collection("publicPosts").get();
     for (const d of pubSnap.docs) {
       const data = d.data();
       if (data.slug) prevBySlug.set(data.slug, data);
       if (data.storyId) prevByStoryId.set(data.storyId, data);
+      // Only inherit siteId from existing docs if we don't already have one.
       if (!siteId && data.siteId) siteId = data.siteId;
     }
     console.log(`[api/notion/sync] Snapshotted ${pubSnap.size} publicPosts (${prevBySlug.size} with slug, siteId=${siteId ?? "none"})`);
   } catch (err) {
     console.warn("[api/notion/sync] Could not snapshot publicPosts:", err);
-  }
-
-  // If no siteId from publicPosts, read it from the sites collection.
-  if (!siteId) {
-    try {
-      const sitesSnap = await adminDb.collection("sites").limit(1).get();
-      if (!sitesSnap.empty) siteId = sitesSnap.docs[0].id;
-    } catch { /* non-fatal */ }
   }
 
   // ── Step 3: Nuclear reset — wipe publicPosts and blogs ───────────────────
@@ -356,23 +373,26 @@ async function syncOnce() {
   });
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  let uid: string | null = null;
   try {
-    return await syncOnce();
+    const body = await request.json().catch(() => ({}));
+    if (typeof body?.uid === "string" && body.uid.trim()) {
+      uid = body.uid.trim();
+    }
+  } catch { /* non-fatal — proceed without uid */ }
+
+  try {
+    return await syncOnce(uid);
   } catch (error: any) {
     console.error("[api/notion/sync] Unhandled error", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unknown backend error",
-      },
+      { error: error instanceof Error ? error.message : "Unknown backend error" },
       { status: 500 },
     );
   }
 }
 
 export async function GET() {
-  return POST();
+  return POST(new Request("http://localhost/api/notion/sync"));
 }
