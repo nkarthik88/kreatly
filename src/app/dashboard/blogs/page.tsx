@@ -374,7 +374,7 @@ export default function BlogsPage() {
                 {/* Title */}
                 <div className="flex-1 min-w-0">
                   <Link
-                    href={`/blog/${encodeURIComponent(story.slug)}`}
+                    href={`/b/${story.slug}`}
                     className="block truncate text-[13px] font-medium text-zinc-900 hover:underline"
                   >
                     {story.title?.trim() || (isSyncing ? "Syncing…" : "Untitled Post")}

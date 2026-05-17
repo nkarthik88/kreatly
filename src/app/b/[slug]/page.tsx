@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/firebase-admin";
+import SubscribeBox from "@/app/blog/_components/SubscribeBox";
 
 type PageParams = { params: Promise<{ slug: string }> };
 
@@ -422,6 +423,8 @@ export default async function PublicBlogPostPage({ params }: PageParams) {
           )}
         </div>
       </article>
+
+      <SubscribeBox slug={slug} />
     </main>
   );
 }
