@@ -115,7 +115,7 @@ export default function DashboardPage() {
       try {
         const [blogsSnap, publishedSnap] = await Promise.all([
           getDocs(collection(db, "blogs")),
-          getDocs(query(collection(db, "publicPosts"), where("siteId", "==", user.uid), where("isPublished", "==", true))),
+          getDocs(query(collection(db, "blogs"), where("status", "==", "Published"))),
         ]);
         setMetrics({ total: blogsSnap.size, published: publishedSnap.size });
       } catch {
