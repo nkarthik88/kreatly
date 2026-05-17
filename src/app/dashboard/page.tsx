@@ -113,89 +113,93 @@ export default function DashboardPage() {
   // ── Onboarding (not yet configured) ───────────────────────────────────────
   if (config === false) {
     return (
-      <div className="bg-white text-zinc-900">
-        <div className="mb-8">
-          <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Welcome to Kreatly</h1>
-          <p className="mt-1 text-[13px] text-zinc-400">
-            Connect your Notion workspace to launch your blog in minutes.
-          </p>
-        </div>
+      <div className="flex min-h-[calc(100vh-120px)] items-start justify-center bg-white px-4 py-16">
+        <div className="w-full max-w-xl">
 
-        <div className="grid gap-5 md:grid-cols-2">
-          {/* Step 1 */}
-          <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">Step 1</p>
-              <h2 className="mt-2 text-[15px] font-semibold text-zinc-900">Duplicate the Master Template</h2>
-              <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
-                Grab a fresh copy of the Kreatly Notion workspace — pre-wired with Blogs,
-                Authors, Tags, and Site Pages so you can start publishing instantly.
-              </p>
-            </div>
-            <div className="mt-6">
-              <a
-                href={process.env.NEXT_PUBLIC_NOTION_TEMPLATE_URL ?? "https://notion.so"}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex w-full items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"
-              >
-                Duplicate to Notion ↗
-              </a>
-            </div>
+          {/* Header */}
+          <div className="mb-10 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-400">
+              Setup
+            </p>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900">
+              Connect your Notion workspace
+            </h1>
+            <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+              Two quick steps and your blog is live.
+            </p>
           </div>
 
+          {/* Step 1 */}
+          <div className="relative pl-9">
+            <StepNumber n={1} />
+            <h2 className="text-[15px] font-semibold text-zinc-900">Duplicate the template</h2>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-zinc-500">
+              Start with a pre-wired Notion workspace — Blogs, Authors, Tags, and Site Pages
+              all ready to go.
+            </p>
+            <a
+              href={process.env.NEXT_PUBLIC_NOTION_TEMPLATE_URL ?? "https://notion.so"}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-4 py-2 text-[13px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"
+            >
+              Open Notion template ↗
+            </a>
+          </div>
+
+          {/* Divider */}
+          <div className="my-8 ml-9 border-t border-zinc-100" />
+
           {/* Step 2 */}
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">Step 2</p>
-            <h2 className="mt-2 text-[15px] font-semibold text-zinc-900">Paste your IDs</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
-              Connect your duplicated workspace by pasting the Notion database IDs below.
+          <div className="relative pl-9">
+            <StepNumber n={2} />
+            <h2 className="text-[15px] font-semibold text-zinc-900">Paste your credentials</h2>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-zinc-500">
+              Copy the IDs from your duplicated workspace and connect them below.
             </p>
 
             <form
-              className="mt-5 space-y-4"
+              className="mt-6 space-y-4"
               onSubmit={(e) => { e.preventDefault(); void handleSave(); }}
             >
               {[
                 { label: "Notion API Secret", hint: "starts with ntn_", value: notionApiKey, setter: setNotionApiKey, type: "password", placeholder: "ntn_..." },
-                { label: "Blog Database ID", hint: "", value: blogDbId, setter: setBlogDbId, type: "text", placeholder: "Posts / Blog database ID" },
-                { label: "Authors Database ID", hint: "", value: authorsDbId, setter: setAuthorsDbId, type: "text", placeholder: "Authors database ID" },
-                { label: "Tags Database ID", hint: "", value: tagsDbId, setter: setTagsDbId, type: "text", placeholder: "Tags / Topics database ID" },
-                { label: "SitePages Database ID", hint: "", value: sitePagesDbId, setter: setSitePagesDbId, type: "text", placeholder: "SitePages / Static pages database ID" },
+                { label: "Blog Database ID", hint: "", value: blogDbId, setter: setBlogDbId, type: "text", placeholder: "e.g. 9efe111f…" },
+                { label: "Authors Database ID", hint: "", value: authorsDbId, setter: setAuthorsDbId, type: "text", placeholder: "e.g. 35fe111f…" },
+                { label: "Tags Database ID", hint: "", value: tagsDbId, setter: setTagsDbId, type: "text", placeholder: "e.g. b8e48cc1…" },
+                { label: "SitePages Database ID", hint: "", value: sitePagesDbId, setter: setSitePagesDbId, type: "text", placeholder: "e.g. c7d22ab0…" },
               ].map(({ label, hint, value, setter, type, placeholder }) => (
-                <div key={label} className="space-y-1.5">
+                <div key={label}>
                   <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
                     {label}
-                    {hint ? <span className="ml-1 font-normal normal-case text-zinc-400">({hint})</span> : null}
+                    {hint ? <span className="ml-1 font-normal normal-case tracking-normal text-zinc-400">({hint})</span> : null}
                   </label>
                   <input
                     type={type}
                     value={value}
                     onChange={(e) => setter(e.target.value)}
                     placeholder={placeholder}
-                    className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-[13px] text-zinc-900 outline-none placeholder:text-zinc-300 transition-colors focus:border-zinc-400"
+                    className="mt-1.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-2.5 text-[13px] text-zinc-900 outline-none placeholder:text-zinc-300 transition-colors focus:border-zinc-500 focus:ring-0"
                   />
                 </div>
               ))}
 
               {message ? (
-                <p className={`pt-1 text-[13px] font-medium ${message.ok ? "text-emerald-600" : "text-red-500"}`}>
+                <p className={`text-[13px] font-medium ${message.ok ? "text-emerald-600" : "text-red-500"}`}>
                   {message.text}
                 </p>
               ) : null}
+
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="mt-2 w-full rounded-md bg-zinc-900 py-3 text-[13px] font-semibold text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving ? "Saving…" : "Save & Launch Blog"}
+              </button>
             </form>
           </div>
-        </div>
 
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={isSaving}
-            className="rounded-md bg-zinc-900 px-6 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSaving ? "Saving…" : "Save & Launch Blog"}
-          </button>
         </div>
       </div>
     );
@@ -267,6 +271,14 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span className="absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-[11px] font-bold text-zinc-500">
+      {n}
+    </span>
   );
 }
 
