@@ -12,22 +12,18 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? "G-R2Q4YFGC8P",
 };
 
-// eslint-disable-next-line no-console
-console.log("[firebase] projectId:", firebaseConfig.projectId, "| apiKey present:", Boolean(firebaseConfig.apiKey));
-
-// getApps() guard makes this safe to call on every hot-reload re-import.
-// initializeFirestore must be called before any getFirestore on a fresh app,
-// so we branch on whether the app existed before this import.
-const isNewApp = getApps().length === 0;
-const app = isNewApp ? initializeApp(firebaseConfig) : getApp();
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-// Memory cache prevents IndexedDB corruption errors during Next.js hot-reloads.
-const db = isNewApp
-  ? initializeFirestore(app, { localCache: memoryLocalCache() })
-  : getFirestore(app);
 
-// eslint-disable-next-line no-console
-console.log("[firebase] Firestore instance ready. App name:", app.name);
+// Always use memory-only cache — no IndexedDB, no offline persistence.
+// initializeFirestore throws if called a second time on the same app, so we
+// catch that and fall back to the already-configured instance via getFirestore.
+let db: ReturnType<typeof getFirestore>;
+try {
+  db = initializeFirestore(app, { localCache: memoryLocalCache() });
+} catch {
+  db = getFirestore(app);
+}
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });

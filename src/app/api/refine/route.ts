@@ -1,22 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { NextResponse } from "next/server";
+import { db as firestore } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyA1ZQYCXHk2NQ9SbF1KfCBw6XvQJCBacb0",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "kreatly-1365e.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "kreatly-1365e",
-  storageBucket:
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "kreatly-1365e.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "1083279778087",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:1083279778087:web:9c202d5d0762240ef3c902",
-};
-
-const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const firestore = getFirestore(firebaseApp);
 
 type RefineChannel = "linkedin" | "x" | "reddit" | "seo-geo";
 
